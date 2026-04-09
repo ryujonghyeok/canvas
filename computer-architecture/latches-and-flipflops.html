@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Digital Logic Explainer</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;700&display=swap');
+
+        :root {
+            /* Sleek Light Mode Palette */
+            --bg-body: #f8fafc;
+            --bg-panel: #ffffff;
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --border-color: #e2e8f0;
+            --accent-blue: #3b82f6;
+            --accent-blue-hover: #2563eb;
+            --logic-0: #94a3b8; /* Slate */
+            --logic-1: #10b981; /* Emerald */
+            --logic-invalid: #ef4444; /* Red */
+            --shadow-sm: 0 1px 3px rgba(0,0,0,0.1);
+            --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1);
+            --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.1);
+            --border-radius: 12px;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+            line-height: 1.6;
+        }
+
+        /* Layout */
+        #app-container {
+            display: flex;
+            width: 100%;
+            height: 100%;
+        }
+
+        .visualizer-panel {
+            width: 60%;
+            background-color: #f1f5f9;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-right: 1px solid var(--border-color);
+            background-image: radial-gradient(#cbd5e1 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+
+        .narrative-panel {
+            width: 40%;
+            background-color: var(--bg-panel);
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+            box-shadow: -4px 0 20px rgba(0,0,0,0.05);
+            z-index: 10;
+        }
+
+        /* Navigation */
+        nav {
+            display: flex;
+            padding: 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
+            position: sticky;
+            top: 0;
+            z-index: 20;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .nav-btn {
+            padding: 0.5rem 1rem;
+            border: 1px solid var(--border-color);
+            background: white;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            transition: all 0.2s ease;
+        }
+
+        .nav-btn:hover {
+            border-color: var(--accent-blue);
+            color: var(--accent-blue);
+        }
+
+        .nav-btn.active {
+            background: var(--accent-blue);
+            color: white;
+            border-color: var(--accent-blue);
+            box-shadow: var(--shadow-sm);
+        }
+
+        /* Content Area */
+        .content-area {
+            padding: 2rem;
+            flex-grow: 1;
+        }
+
+        h1 {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+            letter-spacing: -0.025em;
+        }
+
+        .subtitle {
+            color: var(--text-muted);
+            margin-bottom: 2rem;
+            font-size: 1.1rem;
+        }
+
+        /* Dynamic Explanation Box */
+        .explanation-card {
+            background: #f8fafc;
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius);
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            position: relative;
+            box-shadow: var(--shadow-sm);
+            border-left: 4px solid var(--accent-blue);
+            transition: all 0.3s ease;
+        }
+
+        .explanation-title {
+            font-size: 0.875rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+            font-weight: 700;
+            margin-bottom: 0.75rem;
+        }
+
+        .dynamic-text {
+            font-size: 1.05rem;
+            font-weight: 400;
+        }
+
+        .dynamic-text strong {
+            color: var(--accent-blue);
+        }
+
+        .dynamic-text .state-high { color: var(--logic-1); font-weight: 700;}
+        .dynamic-text .state-low { color: var(--logic-0); font-weight: 700;}
+        .dynamic-text .state-invalid { color: var(--logic-invalid); font-weight: 700;}
+
+        /* Truth Table */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+            background: white;
+            border-radius: var(--border-radius);
+            overflow: hidden;
+            box-shadow: var(--shadow-sm);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.875rem;
+        }
+
+        th, td {
+            padding: 0.75rem 1rem;
+            text-align: center;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        th {
+            background-color: #f1f5f9;
+            color: var(--text-main);
+            font-weight: 700;
+        }
+
+        tr.active-row {
+            background-color: #eff6ff; /* soft blue */
+            outline: 2px solid var(--accent-blue);
+            outline-offset: -2px;
+        }
+
+        td.action-desc {
+            text-align: left;
+            font-family: 'Inter', sans-serif;
+            color: var(--text-muted);
+        }
+
+        /* Visualizer Components */
+        .circuit-container {
+            position: relative;
+            width: 500px;
+            height: 400px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .ic-block {
+            width: 180px;
+            height: 240px;
+            background: white;
+            border: 4px solid var(--text-main);
+            border-radius: 8px;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            box-shadow: var(--shadow-lg);
+            z-index: 2;
+        }
+
+        .ic-title {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-weight: 700;
+            font-size: 1.5rem;
+            letter-spacing: 0.1em;
+            color: var(--border-color);
+            writing-mode: vertical-rl;
+            text-orientation: mixed;
+            pointer-events: none;
+        }
+
+        .pin-label {
+            position: absolute;
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 700;
+            font-size: 1.2rem;
+        }
+
+        /* Wires */
+        .wire {
+            position: absolute;
+            height: 4px;
+            background-color: var(--logic-0);
+            transition: background-color 0.3s ease, box-shadow 0.3s ease;
+            z-index: 1;
+        }
+
+        .wire.high {
+            background-color: var(--logic-1);
+            box-shadow: 0 0 10px var(--logic-1);
+        }
+        
+        .wire.invalid {
+            background-color: var(--logic-invalid);
+            box-shadow: 0 0 10px var(--logic-invalid);
+        }
+
+        /* Logic Buttons */
+        .logic-btn {
+            position: absolute;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            border: 3px solid transparent;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1.5rem;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            z-index: 3;
+            box-shadow: var(--shadow-md);
+        }
+
+        .logic-btn:hover {
+            transform: scale(1.1);
+        }
+
+        .logic-btn.low {
+            background-color: white;
+            border-color: var(--logic-0);
+            color: var(--logic-0);
+        }
+
+        .logic-btn.high {
+            background-color: var(--logic-1);
+            border-color: var(--logic-1);
+            color: white;
+        }
+
+        /* Clock Pulse Button & Animations */
+        .clock-pulse-btn {
+            background-color: var(--text-main);
+            color: white;
+            border-color: var(--text-main);
+            font-size: 0.9rem !important;
+            z-index: 4;
+        }
+
+        .clock-pulse-btn:hover {
+            background-color: #334155;
+            border-color: #334155;
+        }
+
+        @keyframes flash {
+            0% { transform: scale(1); filter: brightness(1); }
+            50% { transform: scale(1.15); filter: brightness(1.3); box-shadow: 0 0 20px var(--accent-blue); }
+            100% { transform: scale(1); filter: brightness(1); }
+        }
+
+        .flash-animate {
+            animation: flash 0.3s ease-out;
+        }
+
+        /* Output Nodes */
+        .output-node {
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 700;
+            font-size: 1.2rem;
+            color: white;
+            transition: all 0.3s ease;
+            z-index: 3;
+        }
+
+        .output-node.low { background-color: var(--logic-0); }
+        .output-node.high { background-color: var(--logic-1); box-shadow: 0 0 15px var(--logic-1); }
+        .output-node.invalid { background-color: var(--logic-invalid); box-shadow: 0 0 15px var(--logic-invalid); }
+
+        /* Clock Triangle inside IC */
+        .clock-triangle {
+            position: absolute;
+            left: 0;
+            width: 0; 
+            height: 0; 
+            border-top: 10px solid transparent;
+            border-bottom: 10px solid transparent;
+            border-left: 15px solid var(--text-main);
+        }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            body { flex-direction: column; overflow: auto; }
+            #app-container { flex-direction: column; height: auto; }
+            .visualizer-panel { width: 100%; height: 50vh; min-height: 400px; border-right: none; border-bottom: 1px solid var(--border-color); }
+            .narrative-panel { width: 100%; height: auto; flex-grow: 1; }
+        }
+    </style>
+</head>
+<body>
+
+<div id="app-container">
+    <div class="visualizer-panel" id="visualizer">
+        <!-- Circuit is dynamically injected here -->
+    </div>
+
+    <div class="narrative-panel">
+        <nav id="navbar">
+            <button class="nav-btn active" data-page="sr">SR Latch</button>
+            <button class="nav-btn" data-page="dlatch">D Latch</button>
+            <button class="nav-btn" data-page="jk">JK Flip-Flop</button>
+            <button class="nav-btn" data-page="dff">D Flip-Flop</button>
+        </nav>
+
+        <div class="content-area">
+            <h1 id="page-title">SR Latch</h1>
+            <p class="subtitle" id="page-subtitle">The fundamental building block of memory.</p>
+
+            <div class="explanation-card">
+                <div class="explanation-title">Professor's Live Analysis</div>
+                <div class="dynamic-text" id="dynamic-explanation">
+                    <!-- Dynamic text injected here -->
+                </div>
+            </div>
+
+            <h3 style="margin-bottom: 1rem; font-size: 1.1rem;">Truth Table</h3>
+            <div id="table-container">
+                <!-- Table injected here -->
+            </div>
+            
+            <div id="theory-text" style="margin-top: 2rem; color: var(--text-muted);">
+                <!-- Theory text injected here -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    /**
+     * Data Architecture & State Management
+     * Designed by Senior Front-End Engineer
+     */
+    
+    // Application State
+    const appState = {
+        currentPage: 'sr',
+        circuits: {
+            sr: { S: 0, R: 0, Q: 0, Qbar: 1 },
+            dlatch: { E: 0, D: 0, Q: 0, Qbar: 1 },
+            jk: { J: 0, K: 0, Q: 0, Qbar: 1, pending: false },
+            dff: { D: 0, Q: 0, Qbar: 1, pending: false }
+        }
+    };
+
+    // Domain Knowledge (The "Professor" Logic)
+    const circuitDefinitions = {
+        sr: {
+            title: "SR Latch (Set-Reset)",
+            subtitle: "An asynchronous memory circuit using cross-coupled NOR gates.",
+            hasClock: false,
+            inputs: [
+                { id: 'S', label: 'S', pos: 25 }, // % from top
+                { id: 'R', label: 'R', pos: 75 }
+            ],
+            outputs: [
+                { id: 'Q', label: 'Q', pos: 25 },
+                { id: 'Qbar', label: "Q'", pos: 75 }
+            ],
+            theory: "The SR Latch is level-sensitive and asynchronous. It immediately responds to inputs. It forms the basis for all other memory elements. <b>S</b> sets the output to 1, while <b>R</b> resets it to 0.",
+            logic: (state) => {
+                const s = state.S, r = state.R;
+                if (s === 0 && r === 0) return { Q: state.Q, Qbar: state.Qbar, valid: true, msg: "Inputs are <span class='state-low'>00</span>. The latch is in a <strong>Hold</strong> state, remembering its previous value." };
+                if (s === 1 && r === 0) return { Q: 1, Qbar: 0, valid: true, msg: "Set is <span class='state-high'>1</span>, Reset is <span class='state-low'>0</span>. The latch is <strong>Set</strong>, forcing Q to 1." };
+                if (s === 0 && r === 1) return { Q: 0, Qbar: 1, valid: true, msg: "Set is <span class='state-low'>0</span>, Reset is <span class='state-high'>1</span>. The latch is <strong>Reset</strong>, forcing Q to 0." };
+                if (s === 1 && r === 1) return { Q: 0, Qbar: 0, valid: false, msg: "<span class='state-invalid'>Invalid State!</span> Both inputs are 1. In a NOR-based latch, both outputs become 0, violating the rule that Q and Q' must be opposites." };
+            },
+            truthTable: {
+                headers: ['S', 'R', 'Q', "Q'", 'State / Action'],
+                rows: [
+                    { condition: (s) => s.S===0 && s.R===0, data: ['0', '0', 'NC', 'NC', 'Hold (No Change)'] },
+                    { condition: (s) => s.S===0 && s.R===1, data: ['0', '1', '0', '1', 'Reset'] },
+                    { condition: (s) => s.S===1 && s.R===0, data: ['1', '0', '1', '0', 'Set'] },
+                    { condition: (s) => s.S===1 && s.R===1, data: ['1', '1', '0', '0', 'Invalid'] }
+                ]
+            }
+        },
+        dlatch: {
+            title: "D Latch (Data)",
+            subtitle: "A gated latch that eliminates the invalid state of the SR Latch.",
+            hasClock: false,
+            inputs: [
+                { id: 'D', label: 'D', pos: 25 },
+                { id: 'E', label: 'E', pos: 75 }
+            ],
+            outputs: [
+                { id: 'Q', label: 'Q', pos: 25 },
+                { id: 'Qbar', label: "Q'", pos: 75 }
+            ],
+            theory: "The D Latch uses an Enable (E) pin. When E is high, it acts transparently, and Q follows D. When E is low, it becomes opaque, holding its value regardless of D.",
+            logic: (state) => {
+                const e = state.E, d = state.D;
+                if (e === 0) return { Q: state.Q, Qbar: state.Qbar, valid: true, msg: "Enable is <span class='state-low'>0</span>. The latch is <strong>Opaque</strong> (Hold state). Changes to Data (D) are ignored." };
+                if (e === 1) return { Q: d, Qbar: d === 1 ? 0 : 1, valid: true, msg: `Enable is <span class='state-high'>1</span>. The latch is <strong>Transparent</strong>. Output Q directly follows the Data input (<span class='state-${d===1?'high':'low'}'>${d}</span>).` };
+            },
+            truthTable: {
+                headers: ['E', 'D', 'Q', "Q'", 'State / Action'],
+                rows: [
+                    { condition: (s) => s.E===0, data: ['0', 'X', 'NC', 'NC', 'Hold (Opaque)'] },
+                    { condition: (s) => s.E===1 && s.D===0, data: ['1', '0', '0', '1', 'Reset (Transparent)'] },
+                    { condition: (s) => s.E===1 && s.D===1, data: ['1', '1', '1', '0', 'Set (Transparent)'] }
+                ]
+            }
+        },
+        jk: {
+            title: "JK Flip-Flop",
+            subtitle: "An edge-triggered universal flip-flop that adds a toggle state.",
+            hasClock: true,
+            clockLabel: 'CLK',
+            clockPos: 50,
+            inputs: [
+                { id: 'J', label: 'J', pos: 25 },
+                { id: 'K', label: 'K', pos: 75 }
+            ],
+            outputs: [
+                { id: 'Q', label: 'Q', pos: 25 },
+                { id: 'Qbar', label: "Q'", pos: 75 }
+            ],
+            theory: "Unlike latches, Flip-Flops are edge-triggered. They only change state precisely when the clock signal transitions (e.g., low to high). The JK Flip-Flop improves on the SR by turning the invalid '11' state into a useful 'Toggle' state.",
+            logic: (state, isClockEdge = false) => {
+                const j = state.J, k = state.K;
+                if (!isClockEdge) {
+                    let action = (j===0&&k===0) ? "Hold" : (j===1&&k===0) ? "Set" : (j===0&&k===1) ? "Reset" : "Toggle";
+                    return { Q: state.Q, Qbar: state.Qbar, valid: true, msg: `Inputs are set (J=${j}, K=${k}). Waiting for clock edge... On the next rising edge, the flip-flop will <strong>${action}</strong>.` };
+                }
+                
+                // Clock edge occurred
+                let newQ = state.Q;
+                let actionMsg = "";
+                if (j === 0 && k === 0) { newQ = state.Q; actionMsg = "Clock pulse! Executed <strong>Hold</strong>. Value remains unchanged."; }
+                else if (j === 1 && k === 0) { newQ = 1; actionMsg = "Clock pulse! Executed <strong>Set</strong>. Q becomes 1."; }
+                else if (j === 0 && k === 1) { newQ = 0; actionMsg = "Clock pulse! Executed <strong>Reset</strong>. Q becomes 0."; }
+                else if (j === 1 && k === 1) { newQ = state.Q === 1 ? 0 : 1; actionMsg = "Clock pulse! Executed <strong>Toggle</strong>. Q inverted its value."; }
+                
+                return { Q: newQ, Qbar: newQ === 1 ? 0 : 1, valid: true, msg: actionMsg };
+            },
+            truthTable: {
+                headers: ['J', 'K', 'CLK', 'Q', "Q'", 'Action'],
+                rows: [
+                    { condition: (s) => s.J===0 && s.K===0, data: ['0', '0', '↑', 'NC', 'NC', 'Hold'] },
+                    { condition: (s) => s.J===0 && s.K===1, data: ['0', '1', '↑', '0', '1', 'Reset'] },
+                    { condition: (s) => s.J===1 && s.K===0, data: ['1', '0', '↑', '1', '0', 'Set'] },
+                    { condition: (s) => s.J===1 && s.K===1, data: ['1', '1', '↑', 'Toggle', 'Toggle', 'Toggle'] }
+                ]
+            }
+        },
+        dff: {
+            title: "D Flip-Flop",
+            subtitle: "An edge-triggered data memory component.",
+            hasClock: true,
+            clockLabel: 'CLK',
+            clockPos: 75,
+            inputs: [
+                { id: 'D', label: 'D', pos: 25 }
+            ],
+            outputs: [
+                { id: 'Q', label: 'Q', pos: 25 },
+                { id: 'Qbar', label: "Q'", pos: 75 }
+            ],
+            theory: "The D Flip-Flop samples the Data (D) input ONLY on the rising edge of the clock. Changes to D between clock pulses are completely ignored, making it highly stable for synchronous systems like CPU registers.",
+            logic: (state, isClockEdge = false) => {
+                const d = state.D;
+                if (!isClockEdge) {
+                    return { Q: state.Q, Qbar: state.Qbar, valid: true, msg: `Data is set to <span class='state-${d===1?'high':'low'}'>${d}</span>. Waiting for clock edge to store this value. Changing D now does not affect Q.` };
+                }
+                
+                // Clock edge occurred
+                return { Q: d, Qbar: d === 1 ? 0 : 1, valid: true, msg: `Clock pulse! Sampled D. Output Q updated to <span class='state-${d===1?'high':'low'}'>${d}</span>.` };
+            },
+            truthTable: {
+                headers: ['D', 'CLK', 'Q', "Q'", 'Action'],
+                rows: [
+                    { condition: (s) => s.D===0, data: ['0', '↑', '0', '1', 'Reset (Store 0)'] },
+                    { condition: (s) => s.D===1, data: ['1', '↑', '1', '0', 'Set (Store 1)'] }
+                ]
+            }
+        }
+    };
+
+    /**
+     * UI Rendering Engine
+     */
+
+    // Initialize application
+    function init() {
+        // Setup Navigation Listeners
+        document.querySelectorAll('.nav-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+                e.target.classList.add('active');
+                appState.currentPage = e.target.dataset.page;
+                renderApp();
+            });
+        });
+
+        renderApp();
+    }
+
+    function renderApp() {
+        const def = circuitDefinitions[appState.currentPage];
+        const state = appState.circuits[appState.currentPage];
+
+        // 1. Update Text Content
+        document.getElementById('page-title').innerText = def.title;
+        document.getElementById('page-subtitle').innerText = def.subtitle;
+        document.getElementById('theory-text').innerHTML = def.theory;
+
+        // 2. Render Visualizer
+        renderVisualizer(def, state);
+
+        // 3. Process Logic & Update Explanations
+        updateLogicAndUI();
+    }
+
+    function renderVisualizer(def, state) {
+        const visContainer = document.getElementById('visualizer');
+        visContainer.innerHTML = ''; // Clear existing
+
+        const circuitDiv = document.createElement('div');
+        circuitDiv.className = 'circuit-container';
+
+        // --- Create Main IC Block ---
+        const icBlock = document.createElement('div');
+        icBlock.className = 'ic-block';
+        
+        // IC Title
+        const icTitle = document.createElement('div');
+        icTitle.className = 'ic-title';
+        icTitle.innerText = def.title.split(' ')[0];
+        icBlock.appendChild(icTitle);
+
+        // Add Clock Triangle if needed
+        if (def.hasClock) {
+            const clkTriangle = document.createElement('div');
+            clkTriangle.className = 'clock-triangle';
+            clkTriangle.style.top = `calc(${def.clockPos}% - 10px)`;
+            icBlock.appendChild(clkTriangle);
+            
+            const clkLabel = document.createElement('div');
+            clkLabel.className = 'pin-label';
+            clkLabel.innerText = def.clockLabel;
+            clkLabel.style.left = '20px';
+            clkLabel.style.top = `calc(${def.clockPos}% - 12px)`;
+            clkLabel.style.fontSize = '0.9rem';
+            clkLabel.style.color = 'var(--text-muted)';
+            icBlock.appendChild(clkLabel);
+
+            // Clock wire
+            const clkWire = document.createElement('div');
+            clkWire.className = 'wire';
+            clkWire.id = 'wire-clk';
+            clkWire.style.left = '50px';
+            clkWire.style.width = '110px';
+            clkWire.style.top = `calc(${def.clockPos}% - 2px)`;
+            circuitDiv.appendChild(clkWire);
+
+            // Clock Button
+            const clkBtn = document.createElement('button');
+            clkBtn.type = 'button';
+            clkBtn.className = 'logic-btn clock-pulse-btn';
+            clkBtn.id = 'btn-clk';
+            clkBtn.innerHTML = `CLK`;
+            clkBtn.style.left = '0px';
+            clkBtn.style.top = `calc(${def.clockPos}% - 25px)`;
+            clkBtn.onclick = () => handleClockPulse();
+            circuitDiv.appendChild(clkBtn);
+        }
+
+        circuitDiv.appendChild(icBlock);
+
+        // --- Render Inputs ---
+        def.inputs.forEach(input => {
+            const val = state[input.id];
+            
+            // Label inside IC
+            const pinLabel = document.createElement('div');
+            pinLabel.className = 'pin-label';
+            pinLabel.innerText = input.label;
+            pinLabel.style.left = '10px';
+            pinLabel.style.top = `calc(${input.pos}% - 12px)`;
+            icBlock.appendChild(pinLabel);
+
+            // Wire
+            const wire = document.createElement('div');
+            wire.className = `wire input-wire ${val === 1 ? 'high' : ''}`;
+            wire.id = `wire-${input.id}`;
+            wire.style.left = '50px';
+            wire.style.width = '110px';
+            wire.style.top = `calc(${input.pos}% - 2px)`;
+            circuitDiv.appendChild(wire);
+
+            // Button
+            const btn = document.createElement('button');
+            btn.className = `logic-btn ${val === 1 ? 'high' : 'low'}`;
+            btn.id = `btn-${input.id}`;
+            btn.innerText = val;
+            btn.style.left = '0px';
+            btn.style.top = `calc(${input.pos}% - 25px)`;
+            btn.onclick = () => toggleInput(input.id);
+            circuitDiv.appendChild(btn);
+        });
+
+        // --- Render Outputs ---
+        def.outputs.forEach(output => {
+            const val = state[output.id];
+            
+            // Label inside IC
+            const pinLabel = document.createElement('div');
+            pinLabel.className = 'pin-label';
+            pinLabel.innerText = output.label;
+            pinLabel.style.right = '10px';
+            pinLabel.style.top = `calc(${output.pos}% - 12px)`;
+            icBlock.appendChild(pinLabel);
+
+            // Wire
+            const wire = document.createElement('div');
+            wire.className = `wire output-wire ${val === 1 ? 'high' : ''}`;
+            wire.id = `wire-${output.id}`;
+            wire.style.right = '50px';
+            wire.style.width = '110px';
+            wire.style.top = `calc(${output.pos}% - 2px)`;
+            circuitDiv.appendChild(wire);
+
+            // Node (Display)
+            const node = document.createElement('div');
+            node.className = `output-node ${val === 1 ? 'high' : 'low'}`;
+            node.id = `node-${output.id}`;
+            node.innerText = val;
+            node.style.right = '10px';
+            node.style.top = `calc(${output.pos}% - 20px)`;
+            circuitDiv.appendChild(node);
+        });
+
+        visContainer.appendChild(circuitDiv);
+        renderTruthTable(def);
+    }
+
+    function renderTruthTable(def) {
+        const container = document.getElementById('table-container');
+        let html = '<table><thead><tr>';
+        
+        def.truthTable.headers.forEach(h => {
+            html += `<th>${h}</th>`;
+        });
+        html += '</tr></thead><tbody id="truth-table-body">';
+        
+        def.truthTable.rows.forEach((row, idx) => {
+            html += `<tr id="row-${idx}">`;
+            row.data.forEach((d, i) => {
+                html += `<td class="${i === row.data.length-1 ? 'action-desc' : ''}">${d}</td>`;
+            });
+            html += `</tr>`;
+        });
+
+        html += '</tbody></table>';
+        container.innerHTML = html;
+    }
+
+    /**
+     * Interaction Handlers
+     */
+
+    function toggleInput(inputId) {
+        const page = appState.currentPage;
+        const state = appState.circuits[page];
+        
+        // Toggle 0/1
+        state[inputId] = state[inputId] === 1 ? 0 : 1;
+        
+        // Update DOM for the button immediately
+        const btn = document.getElementById(`btn-${inputId}`);
+        const wire = document.getElementById(`wire-${inputId}`);
+        
+        btn.innerText = state[inputId];
+        if (state[inputId] === 1) {
+            btn.classList.replace('low', 'high');
+            wire.classList.add('high');
+        } else {
+            btn.classList.replace('high', 'low');
+            wire.classList.remove('high');
+        }
+
+        updateLogicAndUI();
+    }
+
+    function handleClockPulse() {
+        const page = appState.currentPage;
+        const def = circuitDefinitions[page];
+        const state = appState.circuits[page];
+
+        if (!def.hasClock) return;
+
+        // Visual flash for clock wire and button
+        const btn = document.getElementById('btn-clk');
+        const wire = document.getElementById('wire-clk');
+        
+        if (btn) {
+            btn.style.backgroundColor = 'var(--logic-1)';
+            btn.style.borderColor = 'var(--logic-1)';
+        }
+        if (wire) {
+            wire.classList.add('high');
+        }
+        
+        setTimeout(() => { 
+            if (btn) {
+                btn.style.backgroundColor = 'var(--text-main)'; 
+                btn.style.borderColor = 'var(--text-main)';
+            }
+            if (wire) {
+                wire.classList.remove('high');
+            }
+        }, 200);
+
+        // Execute logic indicating a clock edge
+        const result = def.logic(state, true);
+        
+        // Update State
+        state.Q = result.Q;
+        state.Qbar = result.Qbar;
+
+        updateOutputsUI(result);
+    }
+
+    function updateLogicAndUI() {
+        const page = appState.currentPage;
+        const def = circuitDefinitions[page];
+        const state = appState.circuits[page];
+
+        // Determine Logic
+        const result = def.logic(state, false);
+
+        // If not a flip-flop (latch), update outputs immediately
+        if (!def.hasClock) {
+            state.Q = result.Q;
+            state.Qbar = result.Qbar;
+            updateOutputsUI(result);
+        } else {
+            // For flip-flops, just update the explanation text and truth table highlight based on current inputs
+            document.getElementById('dynamic-explanation').innerHTML = result.msg;
+            highlightTruthTable(def, state);
+        }
+    }
+
+    function updateOutputsUI(result) {
+        const def = circuitDefinitions[appState.currentPage];
+        
+        // Update dynamic explanation
+        document.getElementById('dynamic-explanation').innerHTML = result.msg;
+
+        // Update Output Nodes and Wires
+        def.outputs.forEach(out => {
+            const val = result[out.id];
+            const node = document.getElementById(`node-${out.id}`);
+            const wire = document.getElementById(`wire-${out.id}`);
+            
+            if (node && wire) {
+                node.innerText = val;
+                
+                // Clear classes
+                node.className = 'output-node';
+                wire.className = 'wire output-wire';
+
+                if (!result.valid) {
+                    node.classList.add('invalid');
+                    wire.classList.add('invalid');
+                } else if (val === 1) {
+                    node.classList.add('high');
+                    wire.classList.add('high');
+                } else {
+                    node.classList.add('low');
+                }
+
+                // Trigger visual feedback animation
+                node.classList.remove('flash-animate');
+                void node.offsetWidth; // Force reflow
+                node.classList.add('flash-animate');
+            }
+        });
+
+        highlightTruthTable(def, appState.circuits[appState.currentPage]);
+    }
+
+    function highlightTruthTable(def, state) {
+        // Remove existing highlights
+        document.querySelectorAll('#truth-table-body tr').forEach(tr => tr.classList.remove('active-row'));
+        
+        // Find matching row
+        def.truthTable.rows.forEach((row, idx) => {
+            if (row.condition(state)) {
+                const tr = document.getElementById(`row-${idx}`);
+                if (tr) tr.classList.add('active-row');
+            }
+        });
+    }
+
+    // Run!
+    window.onload = init;
+
+</script>
+</body>
+</html>
