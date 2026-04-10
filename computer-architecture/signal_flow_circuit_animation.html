@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sequential Timing - Setup, Hold, and Clock Constraints</title>
+  <title>Sequential Timing - Adjustable Clock Constraints</title>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@500;700&display=swap');
 
@@ -42,12 +42,12 @@
       max-width: 1000px;
       display: flex;
       flex-direction: column;
-      gap: 1.5rem;
+      gap: 1.2rem;
     }
 
     header { text-align: center; }
-    h1 { font-size: 1.5rem; margin-bottom: 0.5rem; }
-    p.desc { color: var(--text-muted); font-size: 0.95rem; }
+    h1 { font-size: 1.4rem; margin-bottom: 0.3rem; }
+    p.desc { color: var(--text-muted); font-size: 0.9rem; }
 
     .circuit-box {
       border: 1px solid var(--border);
@@ -65,22 +65,22 @@
       gap: 1rem;
       align-items: center;
       background: #f1f5f9;
-      padding: 1rem;
+      padding: 0.8rem;
       border-radius: 12px;
     }
 
     .key-hint {
-      font-size: 0.75rem;
+      font-size: 0.7rem;
       color: var(--text-muted);
       background: white;
-      padding: 0.2rem 0.5rem;
+      padding: 0.15rem 0.4rem;
       border-radius: 4px;
       border: 1px solid var(--border);
       font-family: 'JetBrains Mono', monospace;
     }
 
     button {
-      padding: 0.6rem 1.2rem;
+      padding: 0.5rem 1rem;
       border-radius: 8px;
       border: none;
       background: var(--text);
@@ -90,7 +90,6 @@
       transition: all 0.2s;
     }
     button:hover { opacity: 0.9; }
-    button:disabled { opacity: 0.5; }
 
     .waveform-container {
       border-top: 2px solid var(--border);
@@ -99,36 +98,39 @@
 
     .stats {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 1rem;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 0.8rem;
     }
     .stat-card {
       background: #f8fafc;
-      padding: 0.8rem;
+      padding: 0.7rem;
       border-radius: 8px;
       border-left: 4px solid var(--delay);
     }
-    .stat-card h3 { font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); margin-bottom: 0.2rem; }
-    .stat-card p { font-size: 0.85rem; line-height: 1.4; }
+    .stat-card h3 { font-size: 0.7rem; text-transform: uppercase; color: var(--text-muted); margin-bottom: 0.2rem; }
+    .stat-card p { font-size: 0.78rem; line-height: 1.3; }
 
     .constraint-box {
       background: #fffbeb;
       border: 1px solid #fde68a;
-      padding: 1.5rem;
+      padding: 1rem;
       border-radius: 12px;
-      margin-top: 1rem;
     }
     .formula {
       font-family: 'JetBrains Mono', monospace;
-      font-size: 1.2rem;
+      font-size: 1.1rem;
       font-weight: 700;
       color: #92400e;
       text-align: center;
-      margin: 1rem 0;
+      margin: 0.5rem 0;
       background: white;
-      padding: 1rem;
+      padding: 0.7rem;
       border-radius: 8px;
       box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);
+    }
+
+    input[type=range] {
+      accent-color: var(--clk);
     }
   </style>
 </head>
@@ -136,8 +138,8 @@
 
 <div class="container">
   <header>
-    <h1>Sequential Timing Analysis Pro</h1>
-    <p class="desc">Interactive visualization of t_ffpd, t_comb, t_setup, and t_hold</p>
+    <h1>Adjustable Sequential Timing</h1>
+    <p class="desc">Visualize how T_clk must accommodate propagation and setup requirements</p>
   </header>
 
   <div class="circuit-box">
@@ -152,9 +154,6 @@
         </filter>
       </defs>
 
-      <!-- Labels -->
-      <text x="50" y="210" font-size="12" font-weight="600" fill="#64748b">Clock In</text>
-      
       <!-- DFF Block -->
       <rect x="150" y="60" width="100" height="120" rx="8" fill="white" stroke="#1e293b" stroke-width="2" id="rect-dff" />
       <text x="200" y="125" text-anchor="middle" font-weight="700" fill="#3b82f6">DFF</text>
@@ -181,42 +180,59 @@
 
   <div class="controls">
     <button id="play-btn">Play</button>
-    <div id="status-text" style="flex: 1; text-align: center; font-size: 0.9rem; font-weight: 600;">Ready</div>
-    <div style="display: flex; gap: 0.5rem;">
-      <span class="key-hint">SPACE</span> Pause
-      <span class="key-hint">← / →</span> Rewind/FF
+    <div id="status-text" style="flex: 1; text-align: center; font-size: 0.85rem; font-weight: 600;">Ready</div>
+    <div style="display: flex; gap: 0.4rem; font-size: 0.75rem;">
+      <span class="key-hint">SPACE</span> <span class="key-hint">← / →</span>
     </div>
   </div>
 
   <div class="waveform-container">
     <svg viewBox="0 0 800 220" id="waveform-svg">
-      <line x1="100" y1="20" x2="100" y2="200" stroke="#e2e8f0" stroke-width="2" />
+      <!-- Reference lines -->
+      <line x1="100" y1="45" x2="750" y2="45" stroke="#e2e8f0" stroke-width="1" stroke-dasharray="2" />
+      <line x1="100" y1="95" x2="750" y2="95" stroke="#e2e8f0" stroke-width="1" stroke-dasharray="2" />
+      <line x1="100" y1="145" x2="750" y2="145" stroke="#e2e8f0" stroke-width="1" stroke-dasharray="2" />
+
+      <line x1="100" y1="20" x2="100" y2="200" stroke="#cbd5e1" stroke-width="2" />
       <text x="90" y="50" text-anchor="end" font-size="12" font-weight="600" fill="#64748b">CLK</text>
       <text x="90" y="100" text-anchor="end" font-size="12" font-weight="600" fill="#64748b">Q</text>
-      <text x="90" y="150" text-anchor="end" font-size="12" font-weight="600" fill="#64748b">D (Input)</text>
+      <text x="90" y="150" text-anchor="end" font-size="12" font-weight="600" fill="#64748b">D (In)</text>
 
-      <!-- Active waves -->
+      <!-- Active Waveforms -->
       <path id="wave-clk" d="M 100 60" fill="none" stroke="#10b981" stroke-width="3" stroke-linecap="round" />
       <path id="wave-q" d="M 100 110" fill="none" stroke="#3b82f6" stroke-width="3" stroke-linecap="round" />
       <path id="wave-d" d="M 100 160" fill="none" stroke="#f59e0b" stroke-width="3" stroke-linecap="round" />
 
       <!-- Markers -->
-      <g id="setup-region" opacity="0">
-        <rect x="150" y="20" width="50" height="180" fill="#8b5cf6" opacity="0.1" />
-        <text x="175" y="15" text-anchor="middle" font-size="10" fill="#8b5cf6" font-weight="700">t_setup</text>
+      <g id="setup-1">
+        <rect x="165" y="20" width="65" height="180" fill="#8b5cf6" opacity="0.1" />
+        <text x="197" y="15" text-anchor="middle" font-size="9" fill="#8b5cf6" font-weight="700">t_setup</text>
       </g>
-      <g id="hold-region" opacity="0">
-        <rect x="200" y="20" width="40" height="180" fill="#ec4899" opacity="0.1" />
-        <text x="220" y="15" text-anchor="middle" font-size="10" fill="#ec4899" font-weight="700">t_hold</text>
+      <g id="hold-1">
+        <rect x="230" y="20" width="75" height="180" fill="#ec4899" opacity="0.1" />
+        <text x="267" y="15" text-anchor="middle" font-size="9" fill="#ec4899" font-weight="700">t_hold</text>
+      </g>
+
+      <!-- Second CLK edge and Setup (Moving) -->
+      <g id="next-edge">
+        <line id="edge-line" x1="680" y1="20" x2="680" y2="200" stroke="#10b981" stroke-width="2" stroke-dasharray="4" />
+        <rect id="next-setup-rect" x="615" y="20" width="65" height="180" fill="#8b5cf6" opacity="0.2" />
+        <text id="next-setup-text" x="647" y="15" text-anchor="middle" font-size="9" fill="#8b5cf6" font-weight="700">Next Setup</text>
       </g>
       
+      <!-- Propagation Markers -->
       <g id="measure-ffpd" opacity="0">
-        <path d="M 200 45 L 350 45" stroke="#ef4444" stroke-width="1.5" marker-start="url(#arrow)" marker-end="url(#arrow)" />
-        <text x="275" y="40" text-anchor="middle" font-size="11" fill="#ef4444" font-weight="700">t_ffpd</text>
+        <path d="M 230 45 L 360 45" stroke="#ef4444" stroke-width="1.5" marker-start="url(#arrow)" marker-end="url(#arrow)" />
+        <text x="295" y="40" text-anchor="middle" font-size="10" fill="#ef4444" font-weight="700">t_ffpd</text>
       </g>
+      
+      <g id="measure-wire" opacity="0">
+        <path d="M 360 95 L 380 95" stroke="#94a3b8" stroke-width="1" marker-start="url(#arrow)" marker-end="url(#arrow)" />
+      </g>
+
       <g id="measure-comb" opacity="0">
-        <path d="M 350 145 L 550 145" stroke="#ef4444" stroke-width="1.5" marker-start="url(#arrow)" marker-end="url(#arrow)" />
-        <text x="450" y="160" text-anchor="middle" font-size="11" fill="#ef4444" font-weight="700">t_comb</text>
+        <path d="M 380 145 L 581 145" stroke="#ef4444" stroke-width="1.5" marker-start="url(#arrow)" marker-end="url(#arrow)" />
+        <text x="480" y="160" text-anchor="middle" font-size="10" fill="#ef4444" font-weight="700">t_comb</text>
       </g>
       
       <!-- Time indicator -->
@@ -224,101 +240,164 @@
     </svg>
   </div>
 
-  <div class="stats">
-    <div class="stat-card" style="border-left-color: var(--setup);">
-      <h3>Setup Time (t_setup)</h3>
-      <p>Data D must be stable <b>before</b> the clock edge.</p>
+  <div class="constraint-box">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+      <h3 style="font-size: 0.9rem;">Clock Period Control (T_clk)</h3>
+      <input type="range" id="clk-slider" min="300" max="600" value="450" style="width: 180px;">
     </div>
-    <div class="stat-card" style="border-left-color: var(--hold);">
-      <h3>Hold Time (t_hold)</h3>
-      <p>Data D must remain stable <b>after</b> the clock edge.</p>
-    </div>
-    <div class="stat-card">
-      <h3>FF Prop Delay (t_ffpd)</h3>
-      <p>Time for DFF internal state to reach output Q.</p>
-    </div>
-    <div class="stat-card" style="border-left-color: var(--d);">
-      <h3>Comb. Delay (t_comb)</h3>
-      <p>Time for signals to traverse logic gates.</p>
-    </div>
+    <div class="formula" id="formula-text">T_clk ≥ t_ffpd + t_comb + t_setup</div>
+    <div id="violation-msg" style="color: var(--delay); font-weight: 700; text-align: center; min-height: 1.2rem; font-size: 0.85rem;"></div>
   </div>
 
-  <div class="constraint-box">
-    <h3>Clock Period Constraint (T_clk)</h3>
-    <p>To ensure correct operation, the clock period must be long enough for the signal to propagate through the entire loop and meet the setup time requirement of the next cycle.</p>
-    <div class="formula">T_clk ≥ t_ffpd + t_comb + t_setup</div>
-    <p style="font-size: 0.85rem; color: #92400e;"><b>Note:</b> If T_clk is shorter than this sum, the DFF will sample unstable data, leading to meta-stability or logic errors.</p>
+  <div class="stats">
+    <div class="stat-card" style="border-left-color: var(--setup);">
+      <h3>Setup Time</h3>
+      <p>Input must rise before window.</p>
+    </div>
+    <div class="stat-card">
+      <h3>FF Propagation</h3>
+      <p>Delay from CLK to Q output.</p>
+    </div>
+    <div class="stat-card" style="border-left-color: var(--d);">
+      <h3>Comb. Delay</h3>
+      <p>Processing time for loop.</p>
+    </div>
   </div>
 </div>
 
 <script>
+  const clkSlider = document.getElementById('clk-slider');
+  const violationMsg = document.getElementById('violation-msg');
+  const formulaText = document.getElementById('formula-text');
   const playBtn = document.getElementById('play-btn');
   const statusText = document.getElementById('status-text');
-  const dotClk = document.getElementById('dot-clk');
-  const dotQ = document.getElementById('dot-q');
-  const dotD = document.getElementById('dot-d');
+  
   const waveClkPath = document.getElementById('wave-clk');
   const waveQPath = document.getElementById('wave-q');
   const waveDPath = document.getElementById('wave-d');
   const timeLine = document.getElementById('time-line');
+  const nextEdgeGrp = document.getElementById('next-edge');
+  const nextSetupRect = document.getElementById('next-setup-rect');
+  const nextSetupText = document.getElementById('next-setup-text');
+  const edgeLine = document.getElementById('edge-line');
+
   const rectDff = document.getElementById('rect-dff');
   const rectComb = document.getElementById('rect-comb');
+  const dotClk = document.getElementById('dot-clk');
+  const dotQ = document.getElementById('dot-q');
+  const dotD = document.getElementById('dot-d');
 
-  // Animation segments (total 100 units)
-  const TOTAL_DURATION = 10000; // 10 seconds for full cycle
-  let currentTime = 0; 
+  const TOTAL_DURATION = 10000;
+  let currentTime = 0;
   let isPlaying = false;
   let lastFrameTime = 0;
 
-  // Segment definitions [start, end] in progress (0-1)
+  // Segment timings (fractions of cycle)
   const SEG = {
-    WAIT_SETUP: [0, 0.15],
-    CLK_TRAVEL: [0.15, 0.20],
-    FF_INTERNAL: [0.20, 0.35],
-    Q_TRAVEL: [0.35, 0.40],
-    COMB_INTERNAL: [0.40, 0.60],
-    D_TRAVEL: [0.60, 1.0]
+    WAIT_RISE: [0, 0.05],
+    D_RISE: [0.05, 0.10], // D rises at x=130
+    SETUP_CHECK: [0.10, 0.20],
+    CLK_TRAVEL: [0.15, 0.20], // CLK rise at x=230
+    FF_INTERNAL: [0.20, 0.40], // t_ffpd (mid x=366)
+    Q_TRAVEL: [0.40, 0.44],
+    WIRE_GAP: [0.44, 0.48],
+    COMB_INTERNAL: [0.48, 0.72], // t_comb (mid x=587)
+    D_FEEDBACK: [0.72, 1.0]
   };
 
-  function updateVisuals(progress) {
+  function updateVisuals() {
+    const progress = currentTime / TOTAL_DURATION;
     const waveX = 100 + progress * 650;
+    const tClkX = 230 + parseInt(clkSlider.value);
+    const tSetupWidth = 65;
+    const criticalX = 587; // 50% point of rising D after comb logic
+
     timeLine.setAttribute('x1', waveX);
     timeLine.setAttribute('x2', waveX);
 
+    // Update Moving Edge
+    edgeLine.setAttribute('x1', tClkX);
+    edgeLine.setAttribute('x2', tClkX);
+    nextSetupRect.setAttribute('x', tClkX - tSetupWidth);
+    nextSetupText.setAttribute('x', tClkX - tSetupWidth / 2);
+
+    // Check Constraint
+    const violation = (tClkX - tSetupWidth) < criticalX;
+    if (violation) {
+      violationMsg.textContent = "⚠️ TIMING VIOLATION: T_clk too short for path!";
+      formulaText.style.background = "#fee2e2";
+      nextSetupRect.setAttribute('fill', '#ef4444');
+    } else {
+      violationMsg.textContent = "✓ Timing requirements met";
+      formulaText.style.background = "white";
+      nextSetupRect.setAttribute('fill', '#8b5cf6');
+    }
+
     // Waveforms
-    updateWave(waveClkPath, 100, 60, waveX, [{x: 200, y: 30}, {x: 300, y: 60}]);
-    updateWave(waveQPath, 100, 110, waveX, [{x: 350, y: 80}]);
-    updateWave(waveDPath, 100, 160, waveX, [{x: 550, y: 130}]);
+    updateWaveSkewed(waveClkPath, 60, waveX, [{x: 230, y: 30}, {x: 295, y: 60}, {x: tClkX, y: 30}]);
+    updateWaveSkewed(waveQPath, 110, waveX, [{x: 360, y: 80}]);
+    
+    // D: starts at 0, rises before setup, falls after hold, rises after comb
+    updateWaveSkewed(waveDPath, 160, waveX, [
+      {x: 130, y: 130}, // Initial rise before setup
+      {x: 310, y: 160}, // Fall after hold
+      {x: 581, y: 130}  // Feedback rise after t_comb
+    ]);
 
     // Markers
-    document.getElementById('setup-region').setAttribute('opacity', progress > 0.05 ? 1 : 0);
-    document.getElementById('hold-region').setAttribute('opacity', progress > 0.20 ? 1 : 0);
     document.getElementById('measure-ffpd').setAttribute('opacity', progress > 0.35 ? 1 : 0);
-    document.getElementById('measure-comb').setAttribute('opacity', progress > 0.60 ? 1 : 0);
+    document.getElementById('measure-wire').setAttribute('opacity', progress > 0.44 ? 1 : 0);
+    document.getElementById('measure-comb').setAttribute('opacity', progress > 0.65 ? 1 : 0);
 
-    // Circuit Dots
+    // Dots
     resetDots();
-    
     if (progress >= SEG.CLK_TRAVEL[0] && progress <= SEG.CLK_TRAVEL[1]) {
       showDot(dotClk, 'wire-clk', normalize(progress, SEG.CLK_TRAVEL));
-      statusText.textContent = "Clock propagating to DFF...";
+      statusText.textContent = "Clock propagating...";
     } else if (progress >= SEG.FF_INTERNAL[0] && progress <= SEG.FF_INTERNAL[1]) {
       rectDff.setAttribute('fill', '#dbeafe');
-      statusText.textContent = "DFF Internal Processing (t_ffpd) - SLOWED";
+      statusText.textContent = "DFF Processing...";
     } else if (progress >= SEG.Q_TRAVEL[0] && progress <= SEG.Q_TRAVEL[1]) {
       showDot(dotQ, 'wire-q', normalize(progress, SEG.Q_TRAVEL));
-      statusText.textContent = "Q output propagating...";
     } else if (progress >= SEG.COMB_INTERNAL[0] && progress <= SEG.COMB_INTERNAL[1]) {
       rectComb.setAttribute('fill', '#fef3c7');
-      statusText.textContent = "Combinational Logic Delay (t_comb) - SLOWED";
-    } else if (progress >= SEG.D_TRAVEL[0] && progress <= SEG.D_TRAVEL[1]) {
-      showDot(dotD, 'wire-d', normalize(progress, SEG.D_TRAVEL));
-      statusText.textContent = "Feedback path to D input...";
+      statusText.textContent = "Combinational Logic Processing...";
+    } else if (progress >= SEG.D_FEEDBACK[0] && progress <= SEG.D_FEEDBACK[1]) {
+      showDot(dotD, 'wire-d', normalize(progress, SEG.D_FEEDBACK));
+    } else if (progress < SEG.D_RISE[0]) {
+      statusText.textContent = "Starting cycle (D is 0)";
     } else if (progress < SEG.CLK_TRAVEL[0]) {
-      statusText.textContent = "Approaching Clock Edge (Setup time check)";
+      statusText.textContent = "D rising before Setup Time window";
     } else {
-      statusText.textContent = "Cycle Complete / Hold time check";
+      statusText.textContent = "Monitoring Stability / Next state calculation";
     }
+  }
+
+  function updateWaveSkewed(path, startY, currentX, steps) {
+    const skew = 12;
+    let d = `M 100 ${startY}`;
+    let curX = 100;
+    let curY = startY;
+
+    for (const step of steps) {
+      if (currentX <= curX) break;
+      const nextX = Math.min(currentX, step.x);
+      d += ` L ${nextX} ${curY}`;
+      curX = nextX;
+      if (currentX <= step.x) break;
+
+      const transEndX = Math.min(currentX, step.x + skew);
+      const p = (transEndX - step.x) / skew;
+      const targetY = step.y;
+      const transY = curY + (targetY - curY) * p;
+      d += ` L ${transEndX} ${transY}`;
+      curX = transEndX;
+      curY = transY;
+      if (currentX <= step.x + skew) break;
+      curY = targetY;
+    }
+    if (currentX > curX) d += ` L ${currentX} ${curY}`;
+    path.setAttribute('d', d);
   }
 
   function normalize(val, range) {
@@ -340,20 +419,6 @@
     rectComb.setAttribute('fill', 'white');
   }
 
-  function updateWave(path, startX, startY, currentX, stateChanges) {
-    let d = `M ${startX} ${startY}`;
-    let y = startY;
-    for (let change of stateChanges) {
-      if (currentX > change.x) {
-        d += ` L ${change.x} ${y}`;
-        y = change.y;
-        d += ` L ${change.x} ${y}`;
-      }
-    }
-    d += ` L ${currentX} ${y}`;
-    path.setAttribute('d', d);
-  }
-
   function togglePlay() {
     isPlaying = !isPlaying;
     playBtn.textContent = isPlaying ? "Pause" : "Resume";
@@ -365,32 +430,23 @@
 
   function frame(timestamp) {
     if (!isPlaying) return;
-    if (!lastFrameTime) lastFrameTime = timestamp;
     const delta = timestamp - lastFrameTime;
     lastFrameTime = timestamp;
-
     currentTime = (currentTime + delta) % TOTAL_DURATION;
-    updateVisuals(currentTime / TOTAL_DURATION);
+    updateVisuals();
     requestAnimationFrame(frame);
   }
 
   playBtn.addEventListener('click', togglePlay);
+  clkSlider.addEventListener('input', updateVisuals);
 
   window.addEventListener('keydown', (e) => {
-    if (e.code === 'Space') {
-      e.preventDefault();
-      togglePlay();
-    } else if (e.code === 'ArrowRight') {
-      currentTime = (currentTime + 200) % TOTAL_DURATION;
-      updateVisuals(currentTime / TOTAL_DURATION);
-    } else if (e.code === 'ArrowLeft') {
-      currentTime = (currentTime - 200 + TOTAL_DURATION) % TOTAL_DURATION;
-      updateVisuals(currentTime / TOTAL_DURATION);
-    }
+    if (e.code === 'Space') { e.preventDefault(); togglePlay(); }
+    else if (e.code === 'ArrowRight') { currentTime = (currentTime + 200) % TOTAL_DURATION; updateVisuals(); }
+    else if (e.code === 'ArrowLeft') { currentTime = (currentTime - 200 + TOTAL_DURATION) % TOTAL_DURATION; updateVisuals(); }
   });
 
-  // Initial state
-  updateVisuals(0);
+  updateVisuals();
 </script>
 </body>
 </html>
