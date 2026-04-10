@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sequential Circuit – FSM Signal Flow</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;700&display=swap');
+
+    :root {
+      --bg-primary:   #f8fafc;
+      --bg-secondary: #ffffff;
+      --border:       #cbd5e1;
+      --text-main:    #0f172a;
+      --text-muted:   #64748b;
+      --text-light:   #94a3b8;
+      --clk:   #1D9E75;
+      --data:  #3B82F6;
+      --out:   #0EA5E9;
+      --next:  #8B5CF6;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: linear-gradient(135deg, var(--bg-primary), #eef2f7);
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      min-height: 100vh;
+      padding: 2rem;
+    }
+
+    .container {
+      background: var(--bg-secondary);
+      border-radius: 20px;
+      padding: 2rem;
+      max-width: 1000px;
+      width: 100%;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.09);
+    }
+
+    h1 {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: var(--text-main);
+      text-align: center;
+      margin-bottom: 0.4rem;
+    }
+    .subtitle {
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 1fr 280px;
+      gap: 1.5rem;
+      align-items: start;
+    }
+
+    svg#fsm {
+      width: 100%;
+      display: block;
+    }
+
+    /* Right panel */
+    .panel {
+      display: flex;
+      flex-direction: column;
+      gap: 1.2rem;
+    }
+
+    .timer-card {
+      background: linear-gradient(135deg, #f1f5f9, #e8eef5);
+      border: 2px solid var(--border);
+      border-radius: 14px;
+      padding: 1.4rem;
+      text-align: center;
+    }
+    .timer-label {
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      margin-bottom: 0.6rem;
+    }
+    .timer-val {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 2.8rem;
+      font-weight: 700;
+      color: var(--text-main);
+      line-height: 1;
+    }
+    .timer-unit {
+      font-size: 0.85rem;
+      color: var(--text-light);
+      margin-top: 0.3rem;
+    }
+    .phase-badge {
+      margin-top: 1rem;
+      padding: 0.6rem 0.9rem;
+      border-radius: 8px;
+      font-size: 0.82rem;
+      font-weight: 500;
+      background: white;
+      color: var(--text-muted);
+      border-left: 4px solid var(--text-light);
+      text-align: left;
+    }
+    .phase-badge.clk   { border-left-color: var(--clk);  background: #f0fdf9; color: #065f46; }
+    .phase-badge.state { border-left-color: var(--data);  background: #eff6ff; color: #1e40af; }
+    .phase-badge.out   { border-left-color: var(--out);   background: #f0f9ff; color: #075985; }
+    .phase-badge.next  { border-left-color: var(--next);  background: #faf5ff; color: #5b21b6; }
+
+    .legend {
+      background: var(--bg-primary);
+      border-radius: 12px;
+      padding: 1rem;
+    }
+    .legend-title {
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      margin-bottom: 0.75rem;
+    }
+    .leg-row {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      margin-bottom: 0.45rem;
+      font-size: 0.88rem;
+      color: var(--text-muted);
+    }
+    .leg-row:last-child { margin-bottom: 0; }
+    .leg-dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .play-btn {
+      width: 100%;
+      padding: 0.85rem;
+      background: var(--text-main);
+      color: white;
+      border: none;
+      border-radius: 10px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .play-btn:hover:not(:disabled) {
+      background: #1e293b;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 14px rgba(0,0,0,0.12);
+    }
+    .play-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+    @media (max-width: 720px) {
+      .layout { grid-template-columns: 1fr; }
+      .timer-val { font-size: 2.2rem; }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <h1>Sequential Circuit — FSM Signal Flow</h1>
+  <p class="subtitle">Clock → Current State → Combinational Logic → Next State → DFFs (loop)</p>
+
+  <div class="layout">
+
+    <!-- ── SVG DIAGRAM ── -->
+    <svg id="fsm" viewBox="0 0 640 480" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <!-- arrowheads per signal colour -->
+        <marker id="ah-blk" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L8,3 z" fill="#334155"/>
+        </marker>
+        <marker id="ah-clk" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L8,3 z" fill="#1D9E75"/>
+        </marker>
+        <marker id="ah-data" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L8,3 z" fill="#3B82F6"/>
+        </marker>
+        <marker id="ah-out" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L8,3 z" fill="#0EA5E9"/>
+        </marker>
+        <marker id="ah-next" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L8,3 z" fill="#8B5CF6"/>
+        </marker>
+        <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="3" result="blur"/>
+          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+      </defs>
+
+      <!-- ═══════════════════════════════════════════
+           STATIC WIRES  (drawn first, behind boxes)
+      ═══════════════════════════════════════════ -->
+
+      <!-- CLK bus (x=198) from bottom up, branches into each DFF -->
+      <!-- main vertical -->
+      <line x1="198" y1="460" x2="198" y2="310" stroke="#334155" stroke-width="2"/>
+      <!-- branch into DFF1 CLK -->
+      <line x1="198" y1="345" x2="240" y2="345" stroke="#334155" stroke-width="2"/>
+      <!-- branch into DFF2 CLK -->
+      <line x1="198" y1="405" x2="240" y2="405" stroke="#334155" stroke-width="2"/>
+      <!-- junction dots on CLK bus -->
+      <circle cx="198" cy="345" r="4" fill="#334155"/>
+      <circle cx="198" cy="405" r="4" fill="#334155"/>
+
+      <!-- Next-state bus (x=550): right of Next-State Logic → down → into both DFF D pins -->
+      <!-- vertical bus -->
+      <line x1="550" y1="203" x2="550" y2="420" stroke="#334155" stroke-width="2"/>
+      <!-- horizontal into DFF1 D -->
+      <line x1="550" y1="335" x2="322" y2="335" stroke="#334155" stroke-width="2" marker-end="url(#ah-blk)"/>
+      <!-- horizontal into DFF2 D -->
+      <line x1="550" y1="395" x2="322" y2="395" stroke="#334155" stroke-width="2" marker-end="url(#ah-blk)"/>
+      <!-- junction dots on next-state bus -->
+      <circle cx="550" cy="335" r="4" fill="#334155"/>
+      <circle cx="550" cy="395" r="4" fill="#334155"/>
+      <!-- from Next-State Logic right side to bus -->
+      <line x1="520" y1="203" x2="550" y2="203" stroke="#334155" stroke-width="2"/>
+
+      <!-- Current-state bus (x=105): from DFF Q pins left, up, into both logic blocks -->
+      <!-- horizontal from DFF1 Q -->
+      <line x1="240" y1="325" x2="105" y2="325" stroke="#334155" stroke-width="2"/>
+      <!-- horizontal from DFF2 Q -->
+      <line x1="240" y1="385" x2="105" y2="385" stroke="#334155" stroke-width="2"/>
+      <!-- vertical bus from DFF2 Q level up to Output Logic -->
+      <line x1="105" y1="385" x2="105" y2="68" stroke="#334155" stroke-width="2"/>
+      <!-- branch right into Output Logic -->
+      <line x1="105" y1="68" x2="160" y2="68" stroke="#334155" stroke-width="2" marker-end="url(#ah-blk)"/>
+      <!-- branch right into Next-State Logic -->
+      <line x1="105" y1="203" x2="160" y2="203" stroke="#334155" stroke-width="2" marker-end="url(#ah-blk)"/>
+      <!-- junction dots on state bus -->
+      <circle cx="105" cy="325" r="4" fill="#334155"/>
+      <circle cx="105" cy="203" r="4" fill="#334155"/>
+
+      <!-- External Inputs (from far left) into Output Logic -->
+      <line x1="30" y1="55" x2="160" y2="55" stroke="#334155" stroke-width="2" marker-end="url(#ah-blk)"/>
+      <line x1="30" y1="68" x2="60" y2="68" stroke="#334155" stroke-width="2"/>   <!-- merges into bus at x=60 -->
+      <line x1="30" y1="82" x2="160" y2="82" stroke="#334155" stroke-width="2" marker-end="url(#ah-blk)"/>
+      <!-- External Inputs into Next-State Logic -->
+      <line x1="30" y1="190" x2="160" y2="190" stroke="#334155" stroke-width="2" marker-end="url(#ah-blk)"/>
+      <line x1="30" y1="203" x2="60" y2="203" stroke="#334155" stroke-width="2"/>
+      <line x1="30" y1="216" x2="160" y2="216" stroke="#334155" stroke-width="2" marker-end="url(#ah-blk)"/>
+      <!-- Vertical connector between input groups (showing shared source) -->
+      <line x1="30" y1="55" x2="30" y2="216" stroke="#334155" stroke-width="2"/>
+      <!-- Junction dots on input bus -->
+      <circle cx="30" cy="190" r="4" fill="#334155"/>
+      <circle cx="30" cy="203" r="4" fill="#334155"/>
+
+      <!-- Outputs from Output Logic → right -->
+      <line x1="520" y1="55" x2="610" y2="55" stroke="#334155" stroke-width="2" marker-end="url(#ah-blk)"/>
+      <line x1="520" y1="68" x2="610" y2="68" stroke="#334155" stroke-width="2" marker-end="url(#ah-blk)"/>
+      <line x1="520" y1="82" x2="610" y2="82" stroke="#334155" stroke-width="2" marker-end="url(#ah-blk)"/>
+
+      <!-- ═══════════════════════════════════════════
+           LOGIC BLOCKS
+      ═══════════════════════════════════════════ -->
+
+      <!-- Output Combinational Logic -->
+      <rect x="160" y="22" width="360" height="100" rx="4" fill="white" stroke="#334155" stroke-width="2.5"/>
+      <text x="340" y="58" text-anchor="middle" font-size="15" font-weight="700" fill="#2563EB">Output</text>
+      <text x="340" y="78" text-anchor="middle" font-size="15" font-weight="700" fill="#2563EB">Combinational</text>
+      <text x="340" y="98" text-anchor="middle" font-size="15" font-weight="700" fill="#2563EB">Logic</text>
+
+      <!-- Next State Combinational Logic -->
+      <rect x="160" y="160" width="360" height="100" rx="4" fill="white" stroke="#334155" stroke-width="2.5"/>
+      <text x="340" y="196" text-anchor="middle" font-size="15" font-weight="700" fill="#2563EB">Next State</text>
+      <text x="340" y="216" text-anchor="middle" font-size="15" font-weight="700" fill="#2563EB">Combinational</text>
+      <text x="340" y="236" text-anchor="middle" font-size="15" font-weight="700" fill="#2563EB">Logic</text>
+
+      <!-- DFF1 -->
+      <rect x="240" y="305" width="82" height="60" rx="4" fill="white" stroke="#334155" stroke-width="2.5"/>
+      <text x="281" y="330" text-anchor="middle" font-size="13" font-weight="700" fill="#2563EB">DFF</text>
+      <!-- CLK triangle inside DFF1 -->
+      <polygon points="240,339 240,351 250,345" fill="#334155"/>
+      <!-- Q label (left) -->
+      <text x="245" y="321" font-size="10" font-weight="600" fill="#64748b">Q</text>
+      <!-- D label (right) -->
+      <text x="314" y="338" text-anchor="end" font-size="10" font-weight="600" fill="#64748b">D</text>
+
+      <!-- DFF2 -->
+      <rect x="240" y="375" width="82" height="60" rx="4" fill="white" stroke="#334155" stroke-width="2.5"/>
+      <text x="281" y="400" text-anchor="middle" font-size="13" font-weight="700" fill="#2563EB">DFF</text>
+      <!-- CLK triangle inside DFF2 -->
+      <polygon points="240,399 240,411 250,405" fill="#334155"/>
+      <!-- Q label -->
+      <text x="245" y="391" font-size="10" font-weight="600" fill="#64748b">Q</text>
+      <!-- D label -->
+      <text x="314" y="398" text-anchor="end" font-size="10" font-weight="600" fill="#64748b">D</text>
+
+      <!-- ═══════════════════════════════════════════
+           LABELS & ANNOTATIONS
+      ═══════════════════════════════════════════ -->
+
+      <!-- "Inputs" label -->
+      <text x="15" y="140" font-size="13" font-weight="700" fill="#0f172a" text-anchor="middle">
+        <tspan x="15" dy="0">In-</tspan><tspan x="15" dy="16">puts</tspan>
+      </text>
+      <line x1="26" y1="130" x2="26" y2="160" stroke="#94a3b8" stroke-width="1"/>
+
+      <!-- "Outputs" label -->
+      <text x="626" y="60" font-size="13" font-weight="700" fill="#0f172a">Outputs</text>
+
+      <!-- "Current state" label -->
+      <text x="85" y="360" font-size="11" font-weight="600" fill="#64748b" text-anchor="middle">
+        <tspan x="85" dy="0">Current</tspan><tspan x="85" dy="15">state</tspan>
+      </text>
+
+      <!-- "Next state" label -->
+      <text x="565" y="360" font-size="11" font-weight="600" fill="#64748b" text-anchor="start">
+        <tspan x="563" dy="0">Next</tspan><tspan x="563" dy="15">state</tspan>
+      </text>
+
+      <!-- "Clock" label -->
+      <text x="198" y="476" text-anchor="middle" font-size="13" font-weight="700" fill="#0f172a">Clock</text>
+
+      <!-- "⋯" indicators for multiple signals -->
+      <text x="340" y="152" text-anchor="middle" font-size="13" fill="#94a3b8" letter-spacing="4">· · ·</text>
+      <text x="105" y="270" text-anchor="middle" font-size="13" fill="#94a3b8">· · ·</text>
+      <text x="550" y="370" text-anchor="middle" font-size="13" fill="#94a3b8">· · ·</text>
+      <text x="281" y="368" text-anchor="middle" font-size="13" fill="#94a3b8">· · ·</text>
+
+      <!-- ═══════════════════════════════════════════
+           ANIMATED PATHS (invisible guides for dots)
+      ═══════════════════════════════════════════ -->
+
+      <!-- CLK path: bottom → up through CLK bus → branch to DFF1 -->
+      <path id="p-clk" d="M 198 460 L 198 345 L 240 345" fill="none" stroke="none"/>
+
+      <!-- Current-state path: DFF1 Q → left bus → up → Output Logic input -->
+      <path id="p-state" d="M 240 325 L 105 325 L 105 68 L 160 68" fill="none" stroke="none"/>
+
+      <!-- Output path: Output Logic right → Outputs -->
+      <path id="p-out" d="M 520 68 L 610 68" fill="none" stroke="none"/>
+
+      <!-- Next-state path: Next State Logic right → down → DFF1 D -->
+      <path id="p-next" d="M 520 203 L 550 203 L 550 335 L 322 335" fill="none" stroke="none"/>
+
+      <!-- ═══════════════════════════════════════════
+           ANIMATED SIGNAL DOTS
+      ═══════════════════════════════════════════ -->
+      <circle id="dot-clk"   r="6" fill="#1D9E75" opacity="0" filter="url(#glow)"/>
+      <circle id="dot-state" r="6" fill="#3B82F6" opacity="0" filter="url(#glow)"/>
+      <circle id="dot-out"   r="6" fill="#0EA5E9" opacity="0" filter="url(#glow)"/>
+      <circle id="dot-next"  r="6" fill="#8B5CF6" opacity="0" filter="url(#glow)"/>
+
+    </svg>
+
+    <!-- ── RIGHT PANEL ── -->
+    <div class="panel">
+      <div class="timer-card">
+        <div class="timer-label">Elapsed Time</div>
+        <div class="timer-val" id="timer-val">0.00</div>
+        <div class="timer-unit">seconds</div>
+        <div class="phase-badge" id="phase-badge">Waiting to start…</div>
+      </div>
+
+      <div class="legend">
+        <div class="legend-title">Signal Legend</div>
+        <div class="leg-row"><div class="leg-dot" style="background:#1D9E75"></div>Clock edge</div>
+        <div class="leg-row"><div class="leg-dot" style="background:#3B82F6"></div>Current state (feedback)</div>
+        <div class="leg-row"><div class="leg-dot" style="background:#0EA5E9"></div>Outputs</div>
+        <div class="leg-row"><div class="leg-dot" style="background:#8B5CF6"></div>Next state</div>
+      </div>
+
+      <button class="play-btn" id="play-btn" onclick="startAnimation()">▶  Play Animation</button>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  // Total wall-clock duration of one animation cycle (ms)
+  const TOTAL_MS = 12000;
+
+  // Phase windows as [start, end] fractions of TOTAL_MS
+  const PH = {
+    clk:   [0.00, 0.22],   // clock edge propagates to DFFs
+    state: [0.22, 0.52],   // current state feeds logic blocks
+    out:   [0.50, 0.72],   // output logic produces outputs (overlaps slightly)
+    next:  [0.68, 1.00],   // next state travels to DFF D inputs
+  };
+
+  const PHASES_INFO = [
+    { key: 'clk',   label: '⚡ Clock edge — DFFs sampling input',       cls: 'clk'   },
+    { key: 'state', label: '↩ Current state — feeding combinational logic', cls: 'state' },
+    { key: 'out',   label: '→ Outputs — result leaving the circuit',     cls: 'out'   },
+    { key: 'next',  label: '↓ Next state — loading new state into DFFs', cls: 'next'  },
+  ];
+
+  let running = false;
+
+  function getPathDot(pathId, dotId, frac) {
+    const path = document.getElementById(pathId);
+    const dot  = document.getElementById(dotId);
+    if (!path || !dot) return;
+    const len = path.getTotalLength();
+    const pt  = path.getPointAtLength(Math.min(frac, 1) * len);
+    dot.setAttribute('cx', pt.x);
+    dot.setAttribute('cy', pt.y);
+  }
+
+  function setOpacity(id, v) {
+    const el = document.getElementById(id);
+    if (el) el.setAttribute('opacity', v);
+  }
+
+  function easeInOut(t) {
+    return t < 0.5 ? 2*t*t : -1+(4-2*t)*t;
+  }
+
+  function startAnimation() {
+    if (running) return;
+    running = true;
+
+    const btn = document.getElementById('play-btn');
+    btn.disabled = true;
+    btn.textContent = '⏸  Running…';
+
+    // reset dots
+    ['dot-clk','dot-state','dot-out','dot-next'].forEach(id => setOpacity(id, 0));
+
+    const t0 = performance.now();
+
+    function frame(now) {
+      const frac = Math.min((now - t0) / TOTAL_MS, 1);
+      const secs = (frac * (TOTAL_MS / 1000)).toFixed(2);
+
+      document.getElementById('timer-val').textContent = secs;
+
+      // Move each dot along its path during its phase window
+      let activeBadge = null;
+      for (const ph of PHASES_INFO) {
+        const [s, e] = PH[ph.key];
+        const dotId  = 'dot-' + ph.key;
+        if (frac >= s && frac <= e) {
+          const local = easeInOut((frac - s) / (e - s));
+          getPathDot('p-' + ph.key, dotId, local);
+          setOpacity(dotId, 1);
+          if (!activeBadge) activeBadge = ph;
+        } else {
+          setOpacity(dotId, 0);
+        }
+      }
+
+      // Update phase badge
+      const badge = document.getElementById('phase-badge');
+      if (activeBadge) {
+        badge.textContent = activeBadge.label;
+        badge.className   = 'phase-badge ' + activeBadge.cls;
+      } else if (frac === 0) {
+        badge.textContent = 'Waiting to start…';
+        badge.className   = 'phase-badge';
+      } else if (frac === 1) {
+        badge.textContent = '✓ Cycle complete — ready for next clock';
+        badge.className   = 'phase-badge clk';
+      }
+
+      if (frac < 1) {
+        requestAnimationFrame(frame);
+      } else {
+        btn.disabled = false;
+        btn.textContent = '▶  Play Again';
+        running = false;
+      }
+    }
+
+    requestAnimationFrame(frame);
+  }
+</script>
+</body>
+</html>
