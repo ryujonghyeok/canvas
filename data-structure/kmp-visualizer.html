@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KMP Algorithm — Interactive Tutorial</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap');
+
+    :root {
+      --bg: #0f172a;
+      --card: #1e293b;
+      --border: #334155;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      
+      --primary: #6366f1;
+      --secondary: #ec4899;
+      --accent: #06b6d4;
+      
+      --c-match: #22c55e;
+      --c-mismatch: #ef4444;
+      --c-highlight: #f59e0b;
+      --c-active: #6366f1;
+      
+      --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+      padding: 2rem 1rem;
+    }
+
+    /* ── UI STRUCTURE ─────────────────────────────── */
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 1fr 380px;
+      gap: 2rem;
+    }
+
+    @media (max-width: 1000px) {
+      .container { grid-template-columns: 1fr; }
+    }
+
+    .header {
+      grid-column: 1 / -1;
+      text-align: left;
+      margin-bottom: 2rem;
+    }
+    .header h1 {
+      font-size: 2.5rem;
+      font-weight: 800;
+      letter-spacing: -0.04em;
+      background: linear-gradient(to right, var(--primary), var(--accent));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 0.5rem;
+    }
+    .header p { color: var(--text-muted); font-size: 1.1rem; }
+
+    /* ── VISUALIZER AREA ──────────────────────────── */
+    .main-stage {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 1.5rem;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+      position: relative;
+    }
+
+    .card-label {
+      font-size: 0.75rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-muted);
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .card-label span {
+      background: var(--primary);
+      color: white;
+      padding: 2px 8px;
+      border-radius: 6px;
+      font-size: 0.7rem;
+    }
+
+    /* ── CHAR BLOCKS ──────────────────────────────── */
+    .viz-window {
+      overflow-x: auto;
+      padding: 1rem 0 2rem;
+      min-height: 120px;
+    }
+
+    .seq-row {
+      display: flex;
+      gap: 6px;
+      position: relative;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .row-meta {
+      width: 80px;
+      flex-shrink: 0;
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-align: right;
+      padding-right: 12px;
+    }
+
+    .char-block {
+      width: 42px;
+      height: 48px;
+      background: #334155;
+      border: 2px solid #475569;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 1.25rem;
+      font-weight: 700;
+      transition: all 0.3s var(--spring);
+      position: relative;
+    }
+
+    .char-block.active {
+      transform: translateY(-8px) scale(1.1);
+      border-color: var(--primary);
+      box-shadow: 0 0 15px rgba(99, 102, 241, 0.4);
+    }
+    .char-block.match {
+      background: #064e3b;
+      border-color: var(--c-match);
+      color: #dcfce7;
+    }
+    .char-block.mismatch {
+      background: #7f1d1d;
+      border-color: var(--c-mismatch);
+      color: #fee2e2;
+    }
+    .char-block.highlight {
+      border-color: var(--c-highlight);
+      color: var(--c-highlight);
+    }
+
+    .pattern-wrapper {
+      position: relative;
+      transition: transform 0.4s var(--spring);
+      display: flex;
+      gap: 6px;
+    }
+
+    /* ── LPS TABLE ────────────────────────────────── */
+    .lps-table {
+      display: flex;
+      gap: 6px;
+    }
+    .lps-cell {
+      width: 42px;
+      height: 36px;
+      background: #1e293b;
+      border: 2px solid #334155;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      transition: all 0.3s;
+    }
+    .lps-cell.set {
+      background: #312e81;
+      border-color: var(--primary);
+      color: white;
+    }
+
+    /* ── TUTORIAL PANEL ───────────────────────────── */
+    .side-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    .tutorial-card {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .step-content {
+      flex: 1;
+      font-size: 0.95rem;
+      line-height: 1.6;
+      color: #cbd5e1;
+    }
+    .step-content h3 {
+      color: white;
+      margin-bottom: 0.75rem;
+      font-size: 1.2rem;
+    }
+
+    .controls {
+      display: flex;
+      gap: 0.5rem;
+      margin-top: 1.5rem;
+    }
+
+    button {
+      padding: 0.6rem 1rem;
+      border-radius: 12px;
+      border: none;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.85rem;
+    }
+
+    .btn-primary { background: var(--primary); color: white; }
+    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4); }
+    .btn-secondary { background: #334155; color: white; }
+    .btn-secondary:hover { background: #475569; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; transform: none !important; }
+
+    .input-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+    }
+    input {
+      background: #0f172a;
+      border: 2px solid #334155;
+      border-radius: 10px;
+      padding: 0.6rem;
+      color: white;
+      font-family: 'JetBrains Mono', monospace;
+      outline: none;
+    }
+    input:focus { border-color: var(--primary); }
+
+    /* ── ANIMATIONS ───────────────────────────────── */
+    @keyframes pulse-green {
+      0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.4); }
+      70% { box-shadow: 0 0 0 10px rgba(34, 197, 94, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+    }
+    .match-anim { animation: pulse-green 0.6s ease-out; }
+
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      25% { transform: translateX(-4px); }
+      75% { transform: translateX(4px); }
+    }
+    .mismatch-anim { animation: shake 0.3s ease-in-out; }
+
+    /* ── LEGEND & STATS ───────────────────────────── */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.75rem;
+      margin-top: 1rem;
+    }
+    .stat-item {
+      background: #0f172a;
+      padding: 0.75rem;
+      border-radius: 12px;
+      text-align: center;
+    }
+    .stat-value { font-size: 1.2rem; font-weight: 800; color: var(--accent); display: block; }
+    .stat-label { font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700; }
+
+    .progress-bar {
+      height: 6px;
+      background: #334155;
+      border-radius: 3px;
+      margin-top: 1rem;
+      overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      background: var(--primary);
+      width: 0%;
+      transition: width 0.3s;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <div class="header">
+    <h1>KMP Algorithm Masterclass</h1>
+    <p>Efficient string matching using the Knuth-Morris-Pratt technique.</p>
+  </div>
+
+  <!-- MAIN VISUALIZER -->
+  <div class="main-stage">
+    
+    <!-- PHASE 1: LPS -->
+    <div class="card" id="lps-card">
+      <div class="card-label"><span>Phase 1</span> Preprocessing: The LPS Table</div>
+      <div class="viz-window">
+        <div class="seq-row" id="lps-pattern-row">
+          <div class="row-meta">Pattern</div>
+          <div class="pattern-wrapper" id="lps-p-wrap"></div>
+        </div>
+        <div class="seq-row" id="lps-table-row">
+          <div class="row-meta">LPS Table</div>
+          <div class="lps-table" id="lps-cells"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PHASE 2: SEARCH -->
+    <div class="card" id="search-card">
+      <div class="card-label"><span>Phase 2</span> Optimized Searching</div>
+      <div class="viz-window">
+        <div class="seq-row" id="search-text-row">
+          <div class="row-meta">Text</div>
+          <div class="pattern-wrapper" id="text-wrap"></div>
+        </div>
+        <div class="seq-row" id="search-pattern-row">
+          <div class="row-meta">Pattern</div>
+          <div class="pattern-wrapper" id="search-p-wrap" style="transform: translateX(0px)"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- INPUTS -->
+    <div class="card">
+      <div class="card-label">Custom Input</div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 1rem; align-items: end;">
+        <div class="input-group">
+          <label style="font-size: 0.7rem; color: var(--text-muted);">HAYSTACK (TEXT)</label>
+          <input type="text" id="input-text" value="ABABCABABCABC" maxlength="30">
+        </div>
+        <div class="input-group">
+          <label style="font-size: 0.7rem; color: var(--text-muted);">NEEDLE (PATTERN)</label>
+          <input type="text" id="input-pattern" value="ABABC" maxlength="15">
+        </div>
+        <button class="btn-primary" onclick="restart()">Apply & Restart</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SIDE TUTORIAL -->
+  <div class="side-panel">
+    <div class="card tutorial-card">
+      <div class="card-label">Tutorial Guide</div>
+      <div class="step-content" id="tutorial-body">
+        <!-- Content injected by JS -->
+      </div>
+      
+      <div class="progress-bar">
+        <div class="progress-fill" id="progress-fill"></div>
+      </div>
+
+      <div class="controls">
+        <button class="btn-secondary" id="btn-prev" onclick="prevStep()">Back</button>
+        <button class="btn-primary" id="btn-next" onclick="nextStep()">Next</button>
+        <button class="btn-secondary" id="btn-play" onclick="togglePlay()">Play</button>
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat-item">
+          <span class="stat-value" id="stat-comp">0</span>
+          <span class="stat-label">Comparisons</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-value" id="stat-savings">0%</span>
+          <span class="stat-label">Savings</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">Algorithm Legend</div>
+      <div style="font-size: 0.8rem; display: flex; flex-direction: column; gap: 0.5rem;">
+        <div style="display:flex; align-items:center; gap:0.5rem;">
+          <div style="width:12px; height:12px; border-radius:3px; background:var(--c-match);"></div> Character Match
+        </div>
+        <div style="display:flex; align-items:center; gap:0.5rem;">
+          <div style="width:12px; height:12px; border-radius:3px; background:var(--c-mismatch);"></div> Mismatch (Shift Needed)
+        </div>
+        <div style="display:flex; align-items:center; gap:0.5rem;">
+          <div style="width:12px; height:12px; border-radius:3px; background:var(--primary);"></div> Active Comparison
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ── DATA & STATE ──────────────────────────────────
+  let text = "ABABCABABCABC";
+  let pattern = "ABABC";
+  let steps = [];
+  let currentStep = 0;
+  let isPlaying = false;
+  let playInterval = null;
+
+  // ── KMP LOGIC ────────────────────────────────────
+  function generateSteps() {
+    const list = [];
+    const m = pattern.length;
+    const n = text.length;
+    const lps = new Array(m).fill(0);
+
+    // Initial State
+    list.push({
+      type: 'intro',
+      title: "Welcome to KMP",
+      body: "Standard string matching checks every character one by one. KMP is smarter: it uses a 'Failure Function' (LPS table) to avoid repeating work. Let's build that table first."
+    });
+
+    // Phase 1: Build LPS
+    list.push({
+      type: 'lps-init',
+      title: "LPS Table Start",
+      body: "LPS stands for 'Longest Proper Prefix which is also a Suffix'. We always start with lps[0] = 0.",
+      lps: [0, ...Array(m-1).fill(null)],
+      j: 0, k: 0
+    });
+
+    let k = 0;
+    for (let j = 1; j < m; j++) {
+      list.push({
+        type: 'lps-compare',
+        title: `Compare for lps[${j}]`,
+        body: `Compare pattern[${j}] with pattern[${k}]. If they match, we extend our known prefix-suffix.`,
+        j, k, lps: [...lps.map((v, i) => i >= j ? null : v)]
+      });
+
+      while (k > 0 && pattern[k] !== pattern[j]) {
+        let oldK = k;
+        k = lps[k - 1];
+        list.push({
+          type: 'lps-mismatch',
+          title: "Mismatch in LPS",
+          body: `Characters don't match. Shrink prefix candidate using lps[k-1]: jump from index ${oldK} to ${k}.`,
+          j, k, lps: [...lps.map((v, i) => i >= j ? null : v)]
+        });
+      }
+
+      if (pattern[k] === pattern[j]) {
+        k++;
+        lps[j] = k;
+        list.push({
+          type: 'lps-match',
+          title: "Match Found!",
+          body: `Matches! lps[${j}] is now ${k}. This means the first ${k} chars match the last ${k} chars of the substring.`,
+          j, k: k-1, lps: [...lps.map((v, i) => i > j ? null : v)]
+        });
+      } else {
+        lps[j] = 0;
+        list.push({
+          type: 'lps-done-val',
+          title: "No Prefix Match",
+          body: `No matching prefix found. lps[${j}] = 0.`,
+          j, k, lps: [...lps.map((v, i) => i > j ? null : v)]
+        });
+      }
+    }
+
+    list.push({
+      type: 'lps-final',
+      title: "LPS Ready",
+      body: "The failure table is complete. Now, when a mismatch occurs during search, this table tells us exactly where to 'jump' in the pattern.",
+      lps: [...lps]
+    });
+
+    // Phase 2: Search
+    let i = 0; // text index
+    let j_search = 0; // pattern index
+    let comps = 0;
+
+    list.push({
+      type: 'search-start',
+      title: "Begin Searching",
+      body: "Align the pattern at the start of the text. Let's find some matches!",
+      i: 0, j: 0, offset: 0, comps: 0
+    });
+
+    while (i < n) {
+      comps++;
+      list.push({
+        type: 'search-compare',
+        title: "Comparing...",
+        body: `Compare text[${i}] ('${text[i]}') with pattern[${j_search}] ('${pattern[j_search]}').`,
+        i, j: j_search, offset: i - j_search, comps
+      });
+
+      if (pattern[j_search] === text[i]) {
+        i++;
+        j_search++;
+        if (j_search === m) {
+          list.push({
+            type: 'search-match',
+            title: "🎉 Full Match!",
+            body: `Match found at index ${i - j_search}! Instead of shifting by 1, we use lps[${j_search-1}] to skip ahead.`,
+            i: i-1, j: j_search-1, offset: i - j_search, comps, isFull: true
+          });
+          j_search = lps[j_search - 1];
+        } else {
+          list.push({
+            type: 'search-char-match',
+            title: "Character Match",
+            body: "Keep going! We've matched part of the pattern.",
+            i: i-1, j: j_search-1, offset: i - j_search, comps
+          });
+        }
+      } else {
+        if (j_search !== 0) {
+          let oldJ = j_search;
+          j_search = lps[j_search - 1];
+          list.push({
+            type: 'search-jump',
+            title: "Smart Jump",
+            body: `Mismatch! Pattern index ${oldJ} → lps[${oldJ-1}] = ${j_search}. The text index doesn't move back!`,
+            i, j: j_search, offset: i - j_search, comps
+          });
+        } else {
+          i++;
+          list.push({
+            type: 'search-shift',
+            title: "Slide Right",
+            body: "No match at pattern index 0. Slide the whole pattern right by one.",
+            i, j: 0, offset: i, comps
+          });
+        }
+      }
+    }
+
+    list.push({
+      type: 'done',
+      title: "Search Complete",
+      body: `Finished searching. KMP used ${comps} comparisons. A naive search would have used much more!`,
+      comps
+    });
+
+    return list;
+  }
+
+  // ── RENDERING ─────────────────────────────────────
+  function initDOM() {
+    const lpsWrap = document.getElementById('lps-p-wrap');
+    const lpsCells = document.getElementById('lps-cells');
+    const textWrap = document.getElementById('text-wrap');
+    const searchWrap = document.getElementById('search-p-wrap');
+
+    lpsWrap.innerHTML = pattern.split('').map((c, idx) => `<div class="char-block" id="lps-p-${idx}">${c}</div>`).join('');
+    lpsCells.innerHTML = pattern.split('').map((_, idx) => `<div class="lps-cell" id="lps-v-${idx}">?</div>`).join('');
+    textWrap.innerHTML = text.split('').map((c, idx) => `<div class="char-block" id="txt-${idx}">${c}</div>`).join('');
+    searchWrap.innerHTML = pattern.split('').map((c, idx) => `<div class="char-block" id="sp-${idx}">${c}</div>`).join('');
+    
+    // Set width for text rows to prevent wrap
+    document.getElementById('text-wrap').parentElement.style.width = (text.length * 48) + "px";
+  }
+
+  function updateUI() {
+    const step = steps[currentStep];
+    const body = document.getElementById('tutorial-body');
+    const progress = document.getElementById('progress-fill');
+    
+    // Update Text
+    body.innerHTML = `<h3>${step.title}</h3><p>${step.body}</p>`;
+    progress.style.width = `${(currentStep / (steps.length - 1)) * 100}%`;
+
+    // Reset Classes
+    document.querySelectorAll('.char-block, .lps-cell').forEach(el => {
+      el.classList.remove('active', 'match', 'mismatch', 'highlight', 'match-anim', 'mismatch-anim');
+    });
+
+    // Phase 1 Visuals
+    if (step.lps) {
+      step.lps.forEach((v, idx) => {
+        const cell = document.getElementById(`lps-v-${idx}`);
+        cell.textContent = v === null ? '?' : v;
+        if (v !== null) cell.classList.add('set');
+      });
+    }
+
+    if (step.type.startsWith('lps')) {
+      document.getElementById('lps-card').style.opacity = '1';
+      document.getElementById('search-card').style.opacity = '0.3';
+      
+      if (step.j !== undefined) document.getElementById(`lps-p-${step.j}`).classList.add('active');
+      if (step.k !== undefined) document.getElementById(`lps-p-${step.k}`).classList.add(step.type === 'lps-match' ? 'match' : 'highlight');
+      
+      if (step.type === 'lps-match') {
+        document.getElementById(`lps-p-${step.j}`).classList.add('match', 'match-anim');
+      } else if (step.type === 'lps-mismatch') {
+        document.getElementById(`lps-p-${step.j}`).classList.add('mismatch', 'mismatch-anim');
+      }
+    }
+
+    // Phase 2 Visuals
+    if (step.type.startsWith('search') || step.type === 'done') {
+      document.getElementById('lps-card').style.opacity = '0.3';
+      document.getElementById('search-card').style.opacity = '1';
+
+      if (step.offset !== undefined) {
+        const wrap = document.getElementById('search-p-wrap');
+        wrap.style.transform = `translateX(${step.offset * 48}px)`;
+      }
+
+      if (step.i !== undefined) document.getElementById(`txt-${step.i}`).classList.add('active');
+      if (step.j !== undefined) document.getElementById(`sp-${step.j}`).classList.add('active');
+
+      if (step.type === 'search-char-match' || step.type === 'search-match') {
+        document.getElementById(`txt-${step.i}`).classList.add('match', 'match-anim');
+        document.getElementById(`sp-${step.j}`).classList.add('match', 'match-anim');
+      } else if (step.type === 'search-jump' || step.type === 'search-shift') {
+        document.getElementById(`txt-${step.i}`).classList.add('mismatch', 'mismatch-anim');
+        document.getElementById(`sp-${step.j}`).classList.add('mismatch', 'mismatch-anim');
+      }
+    }
+
+    // Stats
+    if (step.comps !== undefined) {
+      document.getElementById('stat-comp').textContent = step.comps;
+      const naive = estimateNaive();
+      const savings = Math.max(0, Math.round((1 - step.comps / naive) * 100));
+      document.getElementById('stat-savings').textContent = savings + "%";
+    }
+
+    // Buttons
+    document.getElementById('btn-prev').disabled = currentStep === 0;
+    document.getElementById('btn-next').disabled = currentStep === steps.length - 1;
+  }
+
+  function estimateNaive() {
+    let c = 0;
+    for (let i = 0; i <= text.length - pattern.length; i++) {
+      for (let j = 0; j < pattern.length; j++) {
+        c++;
+        if (text[i+j] !== pattern[j]) break;
+      }
+    }
+    return c;
+  }
+
+  // ── NAVIGATION ────────────────────────────────────
+  function nextStep() {
+    if (currentStep < steps.length - 1) {
+      currentStep++;
+      updateUI();
+    } else {
+      stopPlay();
+    }
+  }
+
+  function prevStep() {
+    if (currentStep > 0) {
+      currentStep--;
+      updateUI();
+    }
+  }
+
+  function togglePlay() {
+    if (isPlaying) stopPlay();
+    else startPlay();
+  }
+
+  function startPlay() {
+    isPlaying = true;
+    document.getElementById('btn-play').textContent = "Pause";
+    playInterval = setInterval(nextStep, 800);
+  }
+
+  function stopPlay() {
+    isPlaying = false;
+    document.getElementById('btn-play').textContent = "Play";
+    clearInterval(playInterval);
+  }
+
+  function restart() {
+    text = document.getElementById('input-text').value.toUpperCase() || "ABABCABABCABC";
+    pattern = document.getElementById('input-pattern').value.toUpperCase() || "ABABC";
+    currentStep = 0;
+    stopPlay();
+    steps = generateSteps();
+    initDOM();
+    updateUI();
+  }
+
+  // Initial Run
+  restart();
+</script>
+
+</body>
+</html>
