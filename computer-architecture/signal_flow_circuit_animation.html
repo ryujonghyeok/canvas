@@ -114,6 +114,11 @@
     }
 
     input[type=range] { accent-color: var(--clk); cursor: pointer; }
+
+    /* Smooth transitions for elements that react to the slider */
+    #edge-line, #next-setup-rect, #next-setup-text {
+      transition: x 0.15s ease-out, x1 0.15s ease-out, x2 0.15s ease-out, fill 0.2s;
+    }
   </style>
 </head>
 <body>
@@ -121,7 +126,7 @@
 <div class="container">
   <header>
     <h1>Refined Sequential Timing</h1>
-    <p class="desc">t_ffpd aligned with Q level, corrected feedback logic, and adjustable clock constraints</p>
+    <p class="desc">Interactive Next Clock Wave Animation and Constraint Check</p>
   </header>
 
   <div class="circuit-box">
@@ -246,27 +251,28 @@
   let isPlaying = false;
   let lastFrameTime = 0;
 
-  // x=236 is the 50% CLK rise
-  // x=366 is the 50% Q rise
-  // x=587 is the 50% D feedback rise
+  // Critical Timing X-coordinates
   const T_SETUP_VAL = 65;
 
   function updateVisuals() {
     const progress = currentTime / TOTAL_DURATION;
-    const waveX = 100 + progress * 650;
-    const tClkX = 236 + parseInt(clkSlider.value);
-    const criticalX = 587; // End of t_comb
+    // waveX now scales up to 850 to ensure the next clock edge can be fully drawn and animated
+    const waveX = 100 + progress * 750; 
+    
+    // Position of the NEXT clock edge (50% threshold)
+    const tClkX = 236 + parseInt(clkSlider.value); 
+    const criticalX = 587; // 50% point of D rising after comb logic
 
     timeLine.setAttribute('x1', waveX);
     timeLine.setAttribute('x2', waveX);
 
-    // Update Slider-controlled "Next" elements (Static relative to Arrow Seek)
+    // Slider-controlled "Next" elements
     edgeLine.setAttribute('x1', tClkX);
     edgeLine.setAttribute('x2', tClkX);
     nextSetupRect.setAttribute('x', tClkX - T_SETUP_VAL);
     nextSetupText.setAttribute('x', tClkX - T_SETUP_VAL / 2);
 
-    // Timing Check
+    // Timing Violation Check
     const isViolated = (tClkX - T_SETUP_VAL) < criticalX;
     if (isViolated) {
       alertText.textContent = "⚠️ SETUP VIOLATION: D is changing during setup window!";
@@ -280,38 +286,53 @@
       nextSetupRect.setAttribute('fill', '#8b5cf6');
     }
 
-    // Waveform Generation
-    updateWaveSkewed(waveClkPath, 60, waveX, [{x: 230, y: 30}, {x: 295, y: 60}, {x: tClkX-6, y: 30}]);
-    updateWaveSkewed(waveQPath, 110, waveX, [{x: 360, y: 80}]);
+    // Full waveform generation including the NEXT clock edge!
+    updateWaveSkewed(waveClkPath, 60, waveX, [
+      {x: 230, y: 30}, 
+      {x: 295, y: 60}, 
+      {x: tClkX - 6, y: 30}, // Next rise
+      {x: tClkX + 59, y: 60} // Next fall
+    ]);
+    
+    updateWaveSkewed(waveQPath, 110, waveX, [
+      {x: 360, y: 80}
+    ]);
+    
     updateWaveSkewed(waveDPath, 160, waveX, [
-      {x: 130, y: 130}, // Rises before first setup
-      {x: 310, y: 160}, // Falls after hold
-      {x: 581, y: 130}  // Rises right after t_comb
+      {x: 130, y: 130}, 
+      {x: 310, y: 160}, 
+      {x: 581, y: 130}  
     ]);
 
-    // Marker Visibility
+    // Marker Visibility over time
     document.getElementById('measure-ffpd').setAttribute('opacity', progress > 0.38 ? 1 : 0);
     document.getElementById('measure-comb').setAttribute('opacity', progress > 0.65 ? 1 : 0);
 
-    // Circuit Animation
+    // Completely mapped Circuit Animation based on physical position of waveX
     resetDots();
-    if (progress >= 0.15 && progress <= 0.20) {
-      showDot(dotClk, 'wire-clk', (progress-0.15)/0.05);
+    if (waveX >= 200 && waveX <= 240) {
+      showDot(dotClk, 'wire-clk', normalize(waveX, [200, 240]));
       statusText.textContent = "Clock propagating to DFF...";
-    } else if (progress > 0.20 && progress <= 0.40) {
+    } else if (waveX > 240 && waveX <= 350) {
       rectDff.setAttribute('fill', '#dbeafe');
       statusText.textContent = "DFF Internal Delay (t_ffpd)...";
-    } else if (progress > 0.40 && progress <= 0.45) {
-      showDot(dotQ, 'wire-q', (progress-0.40)/0.05);
+    } else if (waveX > 350 && waveX <= 380) {
+      showDot(dotQ, 'wire-q', normalize(waveX, [350, 380]));
       statusText.textContent = "Q output propagating...";
-    } else if (progress > 0.48 && progress <= 0.72) {
+    } else if (waveX > 380 && waveX <= 570) {
       rectComb.setAttribute('fill', '#fef3c7');
       statusText.textContent = "Combinational Logic Processing (t_comb)...";
-    } else if (progress > 0.72 && progress <= 0.95) {
-      showDot(dotD, 'wire-d', (progress-0.72)/0.23);
+    } else if (waveX > 570 && waveX <= 610) {
+      showDot(dotD, 'wire-d', normalize(waveX, [570, 610]));
       statusText.textContent = "Next state calculating and feedback...";
-    } else if (progress < 0.15) {
+    } else if (waveX >= tClkX - 30 && waveX <= tClkX + 10) {
+      // ANIMATING THE NEXT CLOCK EDGE
+      showDot(dotClk, 'wire-clk', normalize(waveX, [tClkX - 30, tClkX + 10]));
+      statusText.textContent = "Next Clock propagating to DFF...";
+    } else if (waveX < 200) {
       statusText.textContent = "Input D is stable before Clock (Setup Check)";
+    } else if (waveX > 610 && waveX < tClkX - 30) {
+      statusText.textContent = "Monitoring Stability / Next state calculation";
     } else {
       statusText.textContent = "Cycle complete. Awaiting next clock.";
     }
@@ -353,6 +374,10 @@
     [dotClk, dotQ, dotD].forEach(d => d.setAttribute('opacity', 0));
     rectDff.setAttribute('fill', 'white');
     rectComb.setAttribute('fill', 'white');
+  }
+
+  function normalize(val, range) {
+    return (val - range[0]) / (range[1] - range[0]);
   }
 
   function frame(timestamp) {
