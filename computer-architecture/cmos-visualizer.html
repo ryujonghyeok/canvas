@@ -651,10 +651,9 @@
 
           <!-- Input A wires -->
           <line x1="16" y1="80" x2="50" y2="80" class="wire" id="and-inA-in"/>
-          <line x1="50" y1="80" x2="50" y2="202" class="wire" id="and-inA-v"/>
+          <line x1="50" y1="80" x2="50" y2="149" class="wire" id="and-inA-v"/>
           <circle cx="50" cy="80" r="3" fill="var(--wire-idle)" id="and-jA1"/>
           <circle cx="50" cy="149" r="3" fill="var(--wire-idle)" id="and-jA2"/>
-          <circle cx="50" cy="202" r="3" fill="var(--wire-idle)" id="and-jA3"/>
           <line x1="50" y1="80" x2="66" y2="80" class="wire" id="and-inA-pa"/>
           <line x1="50" y1="149" x2="152" y2="149" class="wire" id="and-inA-na"/>
           <text x="12" y="84" text-anchor="end" class="label label-input">A</text>
@@ -664,6 +663,7 @@
           <line x1="50" y1="202" x2="170" y2="202" class="wire" id="and-inB-pb-h"/>
           <!-- vertical from B up to PB gate -->
           <line x1="170" y1="80" x2="170" y2="202" class="wire" id="and-inB-pb-v"/>
+          <circle cx="50" cy="202" r="3" fill="var(--wire-idle)" id="and-jB0"/>
           <circle cx="170" cy="202" r="3" fill="var(--wire-idle)" id="and-jB1"/>
           <circle cx="170" cy="80" r="3" fill="var(--wire-idle)" id="and-jB2"/>
           <line x1="170" y1="80" x2="186" y2="80" class="wire" id="and-inB-pb"/>
@@ -921,9 +921,9 @@ function updateAND() {
   setWires(['and-inA-in','and-inA-v','and-inA-pa','and-inA-na'], aHigh);
   colorDot(g('and-jA1'), aHigh);
   colorDot(g('and-jA2'), aHigh);
-  colorDot(g('and-jA3'), aHigh);
 
   setWires(['and-inB-in','and-inB-pb-h','and-inB-pb-v','and-inB-pb','and-inB-nb'], bHigh);
+  colorDot(g('and-jB0'), bHigh);
   colorDot(g('and-jB1'), bHigh);
   colorDot(g('and-jB2'), bHigh);
 
