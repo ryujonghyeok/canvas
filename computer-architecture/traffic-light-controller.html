@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive FSM: Traffic Light Controller</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Fira+Code:wght@500&display=swap');
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0f172a;
+            color: #f8fafc;
+            overflow-x: hidden;
+        }
+
+        .diagram-container {
+            background-color: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 1rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+        }
+
+        /* SVG Node Styles */
+        .node { fill: #334155; stroke: #64748b; stroke-width: 3px; transition: all 0.3s ease; }
+        .node-text-title { fill: #f8fafc; font-weight: 700; font-size: 16px; user-select: none; }
+        .node-text-desc { fill: #cbd5e1; font-weight: 400; font-size: 12px; user-select: none; }
+        
+        .active-node {
+            fill: #0f172a;
+            stroke: #38bdf8;
+            stroke-width: 4px;
+            filter: drop-shadow(0 0 10px rgba(56, 189, 248, 0.6));
+        }
+
+        /* SVG Edge Styles */
+        .edge { stroke: #64748b; stroke-width: 2px; fill: none; transition: all 0.3s ease; }
+        .edge-label { fill: #94a3b8; font-size: 12px; user-select: none; font-family: 'Fira Code', monospace; }
+        
+        .active-edge {
+            stroke: #facc15;
+            stroke-width: 4px;
+            filter: drop-shadow(0 0 8px rgba(250, 204, 21, 0.8));
+        }
+        .active-edge-label {
+            fill: #facc15;
+            font-weight: 700;
+        }
+
+        /* Traffic Light Styles */
+        .tl-bulb {
+            width: 40px; height: 40px; border-radius: 50%;
+            transition: all 0.3s ease;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.8);
+        }
+        .tl-red { background-color: #450a0a; }
+        .tl-yellow { background-color: #422006; }
+        .tl-green { background-color: #052e16; }
+
+        .active-light.tl-red { background-color: #ef4444; box-shadow: 0 0 15px #ef4444, inset 0 0 5px rgba(0,0,0,0.4); }
+        .active-light.tl-yellow { background-color: #eab308; box-shadow: 0 0 15px #eab308, inset 0 0 5px rgba(0,0,0,0.4); }
+        .active-light.tl-green { background-color: #22c55e; box-shadow: 0 0 15px #22c55e, inset 0 0 5px rgba(0,0,0,0.4); }
+
+        .fira { font-family: 'Fira Code', monospace; }
+    </style>
+</head>
+<body class="flex flex-col min-h-screen pb-32">
+
+    <!-- Language Toggle -->
+    <div class="absolute top-4 left-4 z-50 flex bg-slate-800 rounded-lg overflow-hidden border border-slate-700 shadow-lg">
+        <button id="btn-lang-en" onclick="toggleLang('en')" class="px-3 py-1 text-sm font-bold bg-blue-600 text-white transition-colors">EN</button>
+        <button id="btn-lang-ko" onclick="toggleLang('ko')" class="px-3 py-1 text-sm font-bold text-slate-400 hover:bg-slate-700 transition-colors">KO</button>
+    </div>
+
+    <!-- Header -->
+    <header class="bg-slate-900 border-b border-slate-700 p-6 text-center shadow-lg">
+        <h1 id="t-title" class="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400 mb-2">
+            Example FSM: Traffic Light Controller
+        </h1>
+        <p id="t-subtitle" class="text-slate-400 max-w-2xl mx-auto">
+            Interactive breakdown of the Timer and Light Controller. Use the <strong class="text-slate-200">arrow keys</strong> or buttons below to step through the clock cycles.
+        </p>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-grow flex flex-col lg:flex-row justify-center items-center gap-6 p-6">
+        
+        <!-- Timer Diagram -->
+        <div class="diagram-container p-4 flex flex-col items-center">
+            <h2 id="t-timer" class="text-xl font-bold mb-4 text-slate-200">Timer (Moore)</h2>
+            <svg width="340" height="340" viewBox="0 0 340 340">
+                <defs>
+                    <marker id="arrow-norm" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                        <path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b" />
+                    </marker>
+                    <marker id="arrow-act" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                        <path d="M 0 0 L 10 5 L 0 10 z" fill="#facc15" />
+                    </marker>
+                </defs>
+
+                <!-- Edges -->
+                <path id="edge-t_go_ng1" class="edge" d="M 195 95 L 245 145" marker-end="url(#arrow-norm)"/>
+                <text x="235" y="110" class="edge-label" id="label-t_go_ng1">isGreen=0</text>
+                
+                <path id="edge-t_ng1_ng2" class="edge" d="M 245 195 L 195 245" marker-end="url(#arrow-norm)"/>
+                
+                <path id="edge-t_ng2_ng3" class="edge" d="M 145 245 L 95 195" marker-end="url(#arrow-norm)"/>
+                
+                <path id="edge-t_ng3_go" class="edge" d="M 95 145 L 145 95" marker-end="url(#arrow-norm)"/>
+
+                <path id="edge-t_go_go" class="edge" d="M 155 35 C 135 -10, 205 -10, 185 35" marker-end="url(#arrow-norm)"/>
+                <text x="170" y="15" class="edge-label" id="label-t_go_go">isGreen=1</text>
+
+                <!-- Nodes -->
+                <g id="group-t_go">
+                    <circle id="node-t_go" class="node" cx="170" cy="70" r="35"/>
+                    <text x="170" y="65" text-anchor="middle" class="node-text-title">Go</text>
+                    <text x="170" y="85" text-anchor="middle" class="node-text-desc">Next=1</text>
+                </g>
+                <g id="group-t_ng1">
+                    <circle id="node-t_ng1" class="node" cx="270" cy="170" r="35"/>
+                    <text x="270" y="165" text-anchor="middle" class="node-text-title">NG1</text>
+                    <text x="270" y="185" text-anchor="middle" class="node-text-desc">Next=0</text>
+                </g>
+                <g id="group-t_ng2">
+                    <circle id="node-t_ng2" class="node" cx="170" cy="270" r="35"/>
+                    <text x="170" y="265" text-anchor="middle" class="node-text-title">NG2</text>
+                    <text x="170" y="285" text-anchor="middle" class="node-text-desc">Next=0</text>
+                </g>
+                <g id="group-t_ng3">
+                    <circle id="node-t_ng3" class="node" cx="70" cy="170" r="35"/>
+                    <text x="70" y="165" text-anchor="middle" class="node-text-title">NG3</text>
+                    <text x="70" y="185" text-anchor="middle" class="node-text-desc">Next=0</text>
+                </g>
+            </svg>
+        </div>
+
+        <!-- Light Controller Diagram -->
+        <div class="diagram-container p-4 flex flex-col items-center">
+            <h2 id="t-lc" class="text-xl font-bold mb-4 text-slate-200">Light Controller (Moore)</h2>
+            <svg width="340" height="340" viewBox="0 0 340 340">
+                
+                <!-- Edges Next=1 -->
+                <path id="edge-lc_gr_next" class="edge" d="M 195 95 L 245 145" marker-end="url(#arrow-norm)"/>
+                <text x="235" y="110" class="edge-label" id="label-lc_gr_next">Next=1</text>
+                
+                <path id="edge-lc_yr_next" class="edge" d="M 245 195 L 195 245" marker-end="url(#arrow-norm)"/>
+                <text x="235" y="240" class="edge-label" id="label-lc_yr_next">Next=1</text>
+                
+                <path id="edge-lc_rg_next" class="edge" d="M 145 245 L 95 195" marker-end="url(#arrow-norm)"/>
+                <text x="75" y="240" class="edge-label" id="label-lc_rg_next">Next=1</text>
+                
+                <path id="edge-lc_ry_next" class="edge" d="M 95 145 L 145 95" marker-end="url(#arrow-norm)"/>
+                <text x="75" y="110" class="edge-label" id="label-lc_ry_next">Next=1</text>
+
+                <!-- Edges Next=0 (Self Loops) -->
+                <path id="edge-lc_gr_self" class="edge" d="M 155 35 C 135 -10, 205 -10, 185 35" marker-end="url(#arrow-norm)"/>
+                <text x="170" y="15" class="edge-label" id="label-lc_gr_self">Next=0</text>
+
+                <path id="edge-lc_yr_self" class="edge" d="M 305 155 C 350 135, 350 205, 305 185" marker-end="url(#arrow-norm)"/>
+                <text x="315" y="175" class="edge-label" id="label-lc_yr_self">Next=0</text>
+
+                <path id="edge-lc_rg_self" class="edge" d="M 185 305 C 205 350, 135 350, 155 305" marker-end="url(#arrow-norm)"/>
+                <text x="170" y="335" class="edge-label" id="label-lc_rg_self">Next=0</text>
+
+                <path id="edge-lc_ry_self" class="edge" d="M 35 185 C -10 205, -10 135, 35 155" marker-end="url(#arrow-norm)"/>
+                <text x="5" y="175" class="edge-label" id="label-lc_ry_self">Next=0</text>
+
+                <!-- Nodes -->
+                <g id="group-lc_gr">
+                    <circle id="node-lc_gr" class="node" cx="170" cy="70" r="35"/>
+                    <text x="170" y="65" text-anchor="middle" class="node-text-title">G/R</text>
+                    <text x="170" y="85" text-anchor="middle" class="node-text-desc">isGreen=1</text>
+                </g>
+                <g id="group-lc_yr">
+                    <circle id="node-lc_yr" class="node" cx="270" cy="170" r="35"/>
+                    <text x="270" y="165" text-anchor="middle" class="node-text-title">Y/R</text>
+                    <text x="270" y="185" text-anchor="middle" class="node-text-desc">isGreen=0</text>
+                </g>
+                <g id="group-lc_rg">
+                    <circle id="node-lc_rg" class="node" cx="170" cy="270" r="35"/>
+                    <text x="170" y="265" text-anchor="middle" class="node-text-title">R/G</text>
+                    <text x="170" y="285" text-anchor="middle" class="node-text-desc">isGreen=1</text>
+                </g>
+                <g id="group-lc_ry">
+                    <circle id="node-lc_ry" class="node" cx="70" cy="170" r="35"/>
+                    <text x="70" y="165" text-anchor="middle" class="node-text-title">R/Y</text>
+                    <text x="70" y="185" text-anchor="middle" class="node-text-desc">isGreen=0</text>
+                </g>
+            </svg>
+        </div>
+
+        <!-- Traffic Lights -->
+        <div class="diagram-container p-6 flex flex-col items-center h-[374px] justify-center">
+            <h2 id="t-lights" class="text-xl font-bold mb-6 text-slate-200">Traffic Lights</h2>
+            <div class="flex gap-8">
+                <!-- EW Light -->
+                <div class="flex flex-col items-center">
+                    <div id="t-ew" class="text-sm font-bold text-slate-400 mb-2">EW Lane</div>
+                    <div class="w-16 h-[170px] bg-slate-900 rounded-lg border-2 border-slate-700 flex flex-col items-center justify-evenly p-1">
+                        <div id="light-ew-r" class="tl-bulb tl-red"></div>
+                        <div id="light-ew-y" class="tl-bulb tl-yellow"></div>
+                        <div id="light-ew-g" class="tl-bulb tl-green"></div>
+                    </div>
+                </div>
+                <!-- NS Light -->
+                <div class="flex flex-col items-center">
+                    <div id="t-ns" class="text-sm font-bold text-slate-400 mb-2">NS Lane</div>
+                    <div class="w-16 h-[170px] bg-slate-900 rounded-lg border-2 border-slate-700 flex flex-col items-center justify-evenly p-1">
+                        <div id="light-ns-r" class="tl-bulb tl-red"></div>
+                        <div id="light-ns-y" class="tl-bulb tl-yellow"></div>
+                        <div id="light-ns-g" class="tl-bulb tl-green"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Control Dashboard (Fixed Bottom) -->
+    <div class="fixed bottom-0 left-0 w-full bg-slate-800 border-t border-slate-700 shadow-2xl z-50">
+        <!-- Explanation Panel -->
+        <div class="bg-slate-850 py-3 px-6 text-center border-b border-slate-700">
+            <p id="step-explanation" class="text-emerald-300 font-medium max-w-4xl mx-auto h-12 flex items-center justify-center transition-opacity duration-300">
+                Initialize...
+            </p>
+        </div>
+
+        <div class="flex flex-col md:flex-row justify-between items-center max-w-6xl mx-auto p-4 gap-4">
+            
+            <button id="btn-prev" class="px-5 py-2.5 bg-slate-700 hover:bg-slate-600 active:bg-slate-500 rounded-lg font-bold flex items-center gap-2 transition-colors">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+                Prev Cycle
+            </button>
+            
+            <div class="text-center flex-grow flex flex-col items-center justify-center">
+                <div class="text-2xl font-bold text-white mb-1">
+                    <span id="t-cycle">Clock Cycle:</span> <span id="cycle-num" class="text-blue-400">1</span> <span class="text-slate-500 text-lg">/ 10</span>
+                </div>
+                <div class="flex gap-6 bg-slate-900 px-4 py-2 rounded-lg border border-slate-700">
+                    <div class="fira text-sm text-slate-300">
+                        <span id="t-in-lc">Input to LC (<span class="text-yellow-400">Next</span>):</span> <span id="sig-next" class="text-yellow-400 font-bold text-lg">0</span>
+                    </div>
+                    <div class="w-px bg-slate-700"></div>
+                    <div class="fira text-sm text-slate-300">
+                        <span id="t-in-t">Input to Timer (<span class="text-green-400">isGreen</span>):</span> <span id="sig-isgreen" class="text-green-400 font-bold text-lg">1</span>
+                    </div>
+                </div>
+            </div>
+
+            <button id="btn-next" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 active:bg-blue-400 text-white rounded-lg font-bold flex items-center gap-2 transition-colors">
+                Next Cycle
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Define the state sequence (10 cycles exactly mapped to the diagrams)
+        const sequence = [
+            // Cycle 1
+            { t: "t_ng1", lc: "lc_gr", t_out: 0, lc_isG: 1, ew: 'g', ns: 'r', t_edge: 't_ng1_ng2', lc_edge: 'lc_gr_self' },
+            // Cycle 2
+            { t: "t_ng2", lc: "lc_gr", t_out: 0, lc_isG: 1, ew: 'g', ns: 'r', t_edge: 't_ng2_ng3', lc_edge: 'lc_gr_self' },
+            // Cycle 3
+            { t: "t_ng3", lc: "lc_gr", t_out: 0, lc_isG: 1, ew: 'g', ns: 'r', t_edge: 't_ng3_go', lc_edge: 'lc_gr_self' },
+            // Cycle 4
+            { t: "t_go",  lc: "lc_gr", t_out: 1, lc_isG: 1, ew: 'g', ns: 'r', t_edge: 't_go_go',   lc_edge: 'lc_gr_next' },
+            // Cycle 5
+            { t: "t_go",  lc: "lc_yr", t_out: 1, lc_isG: 0, ew: 'y', ns: 'r', t_edge: 't_go_ng1',  lc_edge: 'lc_yr_next' },
+            // Cycle 6
+            { t: "t_ng1", lc: "lc_rg", t_out: 0, lc_isG: 1, ew: 'r', ns: 'g', t_edge: 't_ng1_ng2', lc_edge: 'lc_rg_self' },
+            // Cycle 7
+            { t: "t_ng2", lc: "lc_rg", t_out: 0, lc_isG: 1, ew: 'r', ns: 'g', t_edge: 't_ng2_ng3', lc_edge: 'lc_rg_self' },
+            // Cycle 8
+            { t: "t_ng3", lc: "lc_rg", t_out: 0, lc_isG: 1, ew: 'r', ns: 'g', t_edge: 't_ng3_go',  lc_edge: 'lc_rg_self' },
+            // Cycle 9
+            { t: "t_go",  lc: "lc_rg", t_out: 1, lc_isG: 1, ew: 'r', ns: 'g', t_edge: 't_go_go',   lc_edge: 'lc_rg_next' },
+            // Cycle 10
+            { t: "t_go",  lc: "lc_ry", t_out: 1, lc_isG: 0, ew: 'r', ns: 'y', t_edge: 't_go_ng1',  lc_edge: 'lc_ry_next' }
+        ];
+
+        let currentLang = 'en';
+
+        const dict = {
+            en: {
+                title: "Example FSM: Traffic Light Controller",
+                subtitle: "Interactive breakdown of the Timer and Light Controller. Use the <strong class=\"text-slate-200\">arrow keys</strong> or buttons below to step through the clock cycles.",
+                timer: "Timer (Moore)",
+                lc: "Light Controller (Moore)",
+                lights: "Traffic Lights",
+                ew: "EW Lane",
+                ns: "NS Lane",
+                cycle: "Clock Cycle:",
+                inLc: `Input to LC (<span class="text-yellow-400">Next</span>):`,
+                inT: `Input to Timer (<span class="text-green-400">isGreen</span>):`,
+                btnPrev: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg> Prev Cycle`,
+                btnNext: `Next Cycle <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>`
+            },
+            ko: {
+                title: "예제 FSM: 신호등 제어기",
+                subtitle: "타이머와 조명 제어기의 대화형 분석입니다. <strong class=\"text-slate-200\">방향키</strong>나 아래 버튼을 사용하여 클럭 주기를 이동하세요.",
+                timer: "타이머 (Moore)",
+                lc: "조명 제어기 (Moore)",
+                lights: "신호등",
+                ew: "동서 차선",
+                ns: "남북 차선",
+                cycle: "클럭 주기:",
+                inLc: `LC 입력 (<span class="text-yellow-400">Next</span>):`,
+                inT: `타이머 입력 (<span class="text-green-400">isGreen</span>):`,
+                btnPrev: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg> 이전 주기`,
+                btnNext: `다음 주기 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>`
+            }
+        };
+
+        const explanations = {
+            en: [
+                "The Light Controller is in G/R (EW Green). Output isGreen=1. The Timer is in NG1, outputting Next=0. On next clock, Timer counts down to NG2.",
+                "The Light Controller stays in G/R because Next=0. The Timer moves to NG2 and continues to output Next=0.",
+                "The Light Controller stays in G/R because Next=0. The Timer moves to NG3 and outputs Next=0.",
+                "The Timer reaches Go and outputs Next=1. The Light Controller is still G/R (isGreen=1). Timer sees isGreen=1 and loops back to Go. LC sees Next=1 and will change state!",
+                "Light Controller receives Next=1 and switches to Y/R (EW Yellow). It now outputs isGreen=0. Timer is in Go, sees isGreen=0, and will move to NG1 next cycle.",
+                "Light Controller switches to R/G (NS Green). Output isGreen=1. Timer has moved to NG1 (Next=0). Timer starts counting down 4 cycles for the new green light.",
+                "The Light Controller stays in R/G because Next=0. The Timer moves to NG2 and outputs Next=0.",
+                "The Light Controller stays in R/G because Next=0. The Timer moves to NG3 and outputs Next=0.",
+                "The Timer reaches Go and outputs Next=1. The Light Controller is R/G (isGreen=1). Timer sees isGreen=1 and loops back to Go. LC sees Next=1 and will change state!",
+                "Light Controller receives Next=1 and switches to R/Y (NS Yellow). It outputs isGreen=0. Timer is in Go, sees isGreen=0, and will move to NG1 to restart the sequence."
+            ],
+            ko: [
+                "조명 제어기는 G/R(동서 녹색) 상태입니다. 출력 isGreen=1입니다. 타이머는 NG1 상태이며 Next=0을 출력합니다. 다음 클럭에서 타이머는 NG2로 카운트다운합니다.",
+                "Next=0이므로 조명 제어기는 G/R 상태를 유지합니다. 타이머는 NG2로 이동하고 계속해서 Next=0을 출력합니다.",
+                "Next=0이므로 조명 제어기는 G/R 상태를 유지합니다. 타이머는 NG3으로 이동하고 Next=0을 출력합니다.",
+                "타이머가 Go에 도달하고 Next=1을 출력합니다. 조명 제어기는 여전히 G/R(isGreen=1)입니다. 타이머는 isGreen=1을 확인하고 Go로 다시 루프합니다. LC는 Next=1을 확인하고 상태를 변경합니다!",
+                "조명 제어기가 Next=1을 수신하고 Y/R(동서 황색)로 전환됩니다. 이제 isGreen=0을 출력합니다. 타이머는 Go 상태이며, isGreen=0을 확인하고 다음 주기에 NG1로 이동합니다.",
+                "조명 제어기가 R/G(남북 녹색)로 전환됩니다. 출력 isGreen=1입니다. 타이머는 NG1(Next=0)로 이동했습니다. 타이머는 새로운 녹색 신호에 대해 4주기 카운트다운을 시작합니다.",
+                "Next=0이므로 조명 제어기는 R/G 상태를 유지합니다. 타이머는 NG2로 이동하고 Next=0을 출력합니다.",
+                "Next=0이므로 조명 제어기는 R/G 상태를 유지합니다. 타이머는 NG3으로 이동하고 Next=0을 출력합니다.",
+                "타이머가 Go에 도달하고 Next=1을 출력합니다. 조명 제어기는 R/G(isGreen=1)입니다. 타이머는 isGreen=1을 확인하고 Go로 다시 루프합니다. LC는 Next=1을 확인하고 상태를 변경합니다!",
+                "조명 제어기가 Next=1을 수신하고 R/Y(남북 황색)로 전환됩니다. isGreen=0을 출력합니다. 타이머는 Go 상태이며, isGreen=0을 확인하고 순서를 다시 시작하기 위해 NG1로 이동합니다."
+            ]
+        };
+
+        let currentStep = 0;
+
+        function toggleLang(lang) {
+            currentLang = lang;
+            
+            // Update text elements
+            document.getElementById('t-title').innerHTML = dict[lang].title;
+            document.getElementById('t-subtitle').innerHTML = dict[lang].subtitle;
+            document.getElementById('t-timer').textContent = dict[lang].timer;
+            document.getElementById('t-lc').textContent = dict[lang].lc;
+            document.getElementById('t-lights').textContent = dict[lang].lights;
+            document.getElementById('t-ew').textContent = dict[lang].ew;
+            document.getElementById('t-ns').textContent = dict[lang].ns;
+            document.getElementById('t-cycle').textContent = dict[lang].cycle;
+            document.getElementById('t-in-lc').innerHTML = dict[lang].inLc;
+            document.getElementById('t-in-t').innerHTML = dict[lang].inT;
+            document.getElementById('btn-prev').innerHTML = dict[lang].btnPrev;
+            document.getElementById('btn-next').innerHTML = dict[lang].btnNext;
+
+            // Update button styles
+            document.getElementById('btn-lang-en').className = lang === 'en' 
+                ? "px-3 py-1 text-sm font-bold bg-blue-600 text-white transition-colors"
+                : "px-3 py-1 text-sm font-bold text-slate-400 hover:bg-slate-700 transition-colors";
+            document.getElementById('btn-lang-ko').className = lang === 'ko' 
+                ? "px-3 py-1 text-sm font-bold bg-blue-600 text-white transition-colors"
+                : "px-3 py-1 text-sm font-bold text-slate-400 hover:bg-slate-700 transition-colors";
+
+            // Refresh UI to display new language explanation text
+            updateUI();
+        }
+
+        function updateUI() {
+            const data = sequence[currentStep];
+
+            // 1. Reset all highlights
+            document.querySelectorAll('.active-node').forEach(el => el.classList.remove('active-node'));
+            document.querySelectorAll('.active-edge').forEach(el => el.classList.remove('active-edge'));
+            document.querySelectorAll('.active-edge-label').forEach(el => el.classList.remove('active-edge-label'));
+            document.querySelectorAll('.active-light').forEach(el => el.classList.remove('active-light'));
+
+            // Fix marker colors dynamically
+            document.querySelectorAll('path.edge').forEach(el => el.setAttribute('marker-end', 'url(#arrow-norm)'));
+
+            // 2. Highlight active nodes
+            document.getElementById('node-' + data.t).classList.add('active-node');
+            document.getElementById('node-' + data.lc).classList.add('active-node');
+
+            // 3. Highlight active transition edges
+            const tEdge = document.getElementById('edge-' + data.t_edge);
+            const lcEdge = document.getElementById('edge-' + data.lc_edge);
+            
+            tEdge.classList.add('active-edge');
+            tEdge.setAttribute('marker-end', 'url(#arrow-act)');
+            
+            lcEdge.classList.add('active-edge');
+            lcEdge.setAttribute('marker-end', 'url(#arrow-act)');
+
+            // Highlight edge labels
+            const tEdgeLabel = document.getElementById('label-' + data.t_edge);
+            if(tEdgeLabel) tEdgeLabel.classList.add('active-edge-label');
+            const lcEdgeLabel = document.getElementById('label-' + data.lc_edge);
+            if(lcEdgeLabel) lcEdgeLabel.classList.add('active-edge-label');
+
+            // 4. Update Traffic Lights
+            document.getElementById('light-ew-' + data.ew).classList.add('active-light');
+            document.getElementById('light-ns-' + data.ns).classList.add('active-light');
+
+            // 5. Update Signals and Text
+            document.getElementById('cycle-num').textContent = currentStep + 1;
+            document.getElementById('sig-next').textContent = data.t_out;
+            document.getElementById('sig-isgreen').textContent = data.lc_isG;
+
+            // Update explanation with smooth fade
+            const expl = document.getElementById('step-explanation');
+            expl.style.opacity = 0;
+            setTimeout(() => {
+                expl.textContent = explanations[currentLang][currentStep];
+                expl.style.opacity = 1;
+            }, 150);
+        }
+
+        // Navigation Functions
+        function nextStep() {
+            currentStep = (currentStep + 1) % sequence.length;
+            updateUI();
+        }
+
+        function prevStep() {
+            currentStep = (currentStep - 1 + sequence.length) % sequence.length;
+            updateUI();
+        }
+
+        // Event Listeners
+        document.getElementById('btn-next').addEventListener('click', nextStep);
+        document.getElementById('btn-prev').addEventListener('click', prevStep);
+
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowRight') {
+                e.preventDefault();
+                nextStep();
+            } else if (e.key === 'ArrowLeft') {
+                e.preventDefault();
+                prevStep();
+            }
+        });
+
+        // Initialize
+        updateUI();
+
+    </script>
+</body>
+</html>
