@@ -51,4 +51,4 @@ for item in sorted(os.listdir('.')):
 with open('index.html', 'w', encoding='utf-8') as f:
     f.write(html_top + content + html_bottom)
 
-print("✅ index.html has been successfully rebuilt!")
+print("index.html has been successfully rebuilt!")

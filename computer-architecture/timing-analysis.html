@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Circuit Timing & Reliability Simulator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background-color: #f8fafc; 
+            color: #0f172a; 
+            overflow-x: hidden;
+        }
+        
+        /* Magical Sliders */
+        input[type=range] {
+            -webkit-appearance: none; width: 100%; background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none; height: 18px; width: 18px; border-radius: 50%;
+            background: #0ea5e9; cursor: pointer; margin-top: -7px; 
+            box-shadow: 0 0 10px rgba(14, 165, 233, 0.4);
+            transition: transform 0.1s;
+        }
+        input[type=range]::-webkit-slider-thumb:hover {
+            transform: scale(1.1);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%; height: 4px; cursor: pointer; background: #cbd5e1; border-radius: 2px;
+        }
+        input[type=range]:focus { outline: none; }
+        
+        .panel { 
+            background: #ffffff; 
+            border: 1px solid #e2e8f0; 
+            border-radius: 0.75rem; 
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+        }
+
+        .story-enter {
+            opacity: 0;
+            transform: translateY(10px);
+        }
+        .story-enter-active {
+            opacity: 1;
+            transform: translateY(0);
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* Canvas styling */
+        canvas { 
+            width: 100%; 
+            background: transparent;
+            cursor: ew-resize;
+        }
+
+        .glass-header {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid rgba(226, 232, 240, 0.8);
+        }
+
+        /* Circuit SVG */
+        .circuit-svg text { font-family: 'Inter', sans-serif; }
+        .dot-glow { filter: drop-shadow(0 0 6px #ef4444); }
+        
+        /* Language Toggle Switch */
+        .toggle-checkbox:checked { right: 0; border-color: #68D391; }
+        .toggle-checkbox:checked + .toggle-label { background-color: #68D391; }
+        .toggle-checkbox:checked + .toggle-label:after { transform: translateX(100%); }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center pb-4">
+
+    <!-- Header -->
+    <div class="w-full glass-header sticky top-0 z-50 px-4 py-3 mb-3 shadow-sm flex justify-between items-center">
+        <div class="w-full flex justify-between items-center">
+            <div class="flex-shrink-0">
+                <h1 id="main_title" class="text-xl md:text-2xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-slate-900 to-slate-600">
+                    Interactive Timing Analysis
+                </h1>
+            </div>
+            
+            <div class="flex items-center gap-3 md:gap-5 flex-wrap justify-end">
+                
+                <!-- Randomize Button -->
+                <button onclick="randomizeData()" class="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 border border-indigo-200 rounded-full text-xs font-bold transition-colors">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                    <span id="btn_randomize">Randomize Signal</span>
+                </button>
+
+                <!-- Play/Pause Control -->
+                <div class="flex items-center gap-1.5 bg-slate-100 rounded-full p-1 border border-slate-200">
+                    <button id="btn_play_pause" onclick="togglePlay()" class="p-1.5 bg-white rounded-full text-slate-700 hover:text-sky-600 shadow-sm transition-colors focus:outline-none" title="Play/Pause (Spacebar)">
+                        <svg id="icon_pause" class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>
+                        <svg id="icon_play" class="w-4 h-4 hidden" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd"></path></svg>
+                    </button>
+                    <span id="txt_controls_hint" class="text-[10px] font-medium text-slate-500 pr-2 hidden md:inline">Drag or Spacebar</span>
+                </div>
+
+                <!-- Language Toggle -->
+                <div class="flex items-center">
+                    <span class="text-[10px] font-bold text-slate-500 mr-1.5">EN</span>
+                    <label for="toggle_lang" class="flex items-center cursor-pointer">
+                        <div class="relative">
+                            <input type="checkbox" id="toggle_lang" class="sr-only" onchange="toggleLanguage()">
+                            <div class="block bg-slate-300 w-8 h-5 rounded-full transition-colors duration-300"></div>
+                            <div class="dot absolute left-1 top-1 bg-white w-3 h-3 rounded-full transition transform duration-300"></div>
+                        </div>
+                    </label>
+                    <span class="text-[10px] font-bold text-slate-500 ml-1.5">KR</span>
+                </div>
+
+                <span id="status_badge" class="px-3 py-1 rounded-full text-[10px] font-bold transition-colors shadow-sm bg-green-100 text-green-700 border border-green-200">
+                    ✓ VALID
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content Grid (Reduced Outer Margins) -->
+    <div class="w-full max-w-[1800px] px-2 md:px-4 grid grid-cols-1 lg:grid-cols-12 gap-3">
+        
+        <!-- Left Column: Controls & Storyteller -->
+        <div class="col-span-1 lg:col-span-3 flex flex-col gap-3">
+            
+            <!-- Parameters Panel -->
+            <div class="panel p-4 space-y-4">
+                <div class="flex items-center gap-2 mb-1">
+                    <svg class="w-4 h-4 text-sky-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path></svg>
+                    <h2 id="lbl_parameters" class="text-base font-bold text-slate-800">Parameters</h2>
+                </div>
+                
+                <div class="group">
+                    <div class="flex justify-between mb-0.5">
+                        <label id="lbl_t_clk" class="text-xs font-semibold text-slate-600">Clock Period (t<sub class="text-[9px]">clk</sub>)</label>
+                        <span id="val_t_clk" class="text-xs text-sky-600 font-bold">100 ns</span>
+                    </div>
+                    <input type="range" id="t_clk" min="60" max="150" value="100" oninput="updateParams()">
+                </div>
+
+                <div class="h-px bg-slate-100 w-full"></div>
+
+                <div class="group">
+                    <div class="flex justify-between mb-0.5">
+                        <label id="lbl_t_ffpd" class="text-xs font-semibold text-slate-600">FF Delay (t<sub class="text-[9px]">ffpd</sub>)</label>
+                        <span id="val_t_ffpd" class="text-xs text-slate-500 font-medium">15 ns</span>
+                    </div>
+                    <input type="range" id="t_ffpd" min="5" max="30" value="15" oninput="updateParams()">
+                </div>
+                <div class="group">
+                    <div class="flex justify-between mb-0.5">
+                        <label id="lbl_t_comb" class="text-xs font-semibold text-slate-600">Logic Delay (t<sub class="text-[9px]">comb</sub>)</label>
+                        <span id="val_t_comb" class="text-xs text-slate-500 font-medium">45 ns</span>
+                    </div>
+                    <input type="range" id="t_comb" min="10" max="80" value="45" oninput="updateParams()">
+                </div>
+                <div class="group">
+                    <div class="flex justify-between mb-0.5">
+                        <label id="lbl_t_wire" class="text-xs font-semibold text-slate-600">Wire Delay (t<sub class="text-[9px]">wire</sub>)</label>
+                        <span id="val_t_wire" class="text-xs text-slate-500 font-medium">5 ns</span>
+                    </div>
+                    <input type="range" id="t_wire" min="0" max="25" value="5" oninput="updateParams()">
+                </div>
+
+                <div class="h-px bg-slate-100 w-full"></div>
+
+                <div class="group">
+                    <div class="flex justify-between mb-0.5">
+                        <label id="lbl_t_setup" class="text-xs font-semibold text-slate-600">Setup Time (t<sub class="text-[9px]">setup</sub>)</label>
+                        <span id="val_t_setup" class="text-xs text-indigo-500 font-medium">15 ns</span>
+                    </div>
+                    <input type="range" id="t_setup" min="5" max="25" value="15" oninput="updateParams()">
+                </div>
+                <div class="group">
+                    <div class="flex justify-between mb-0.5">
+                        <label id="lbl_t_hold" class="text-xs font-semibold text-slate-600">Hold Time (t<sub class="text-[9px]">hold</sub>)</label>
+                        <span id="val_t_hold" class="text-xs text-emerald-500 font-medium">10 ns</span>
+                    </div>
+                    <input type="range" id="t_hold" min="5" max="25" value="10" oninput="updateParams()">
+                </div>
+
+                <div class="h-px bg-slate-100 w-full"></div>
+
+                <div class="group">
+                    <div class="flex justify-between mb-0.5">
+                        <label id="lbl_anim_speed" class="text-xs font-semibold text-slate-600">Scanner Speed</label>
+                        <span id="val_anim_speed" class="text-xs text-pink-500 font-bold">1.0x</span>
+                    </div>
+                    <input type="range" id="anim_speed" min="0.2" max="2.5" step="0.1" value="1" oninput="document.getElementById('val_anim_speed').innerText = parseFloat(this.value).toFixed(1) + 'x'">
+                </div>
+                
+                <button id="btn_reset" onclick="resetDefaults()" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold py-1.5 rounded transition-colors">
+                    Reset Defaults
+                </button>
+            </div>
+
+            <!-- Live Analysis Story Box Moved Here (B) -->
+            <div class="panel p-4 border-t-4 border-t-sky-400 bg-gradient-to-b from-white to-slate-50 relative flex-grow">
+                <div class="flex items-center gap-2 mb-2 relative z-10">
+                    <span class="flex h-5 w-5 items-center justify-center rounded-full bg-sky-100 text-sky-600">
+                        <svg class="w-3 h-3 animate-pulse" fill="currentColor" viewBox="0 0 20 20"><path d="M10 12a2 2 0 100-4 2 2 0 000 4z"/><path fill-rule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clip-rule="evenodd"/></svg>
+                    </span>
+                    <h2 id="lbl_live_analysis" class="text-xs font-bold tracking-widest text-slate-400 uppercase">Live Analysis</h2>
+                </div>
+
+                <div id="story_container" class="relative z-10">
+                    <h3 id="story_title" class="text-lg font-bold text-slate-800 mb-1 transition-colors duration-300">Clock Trigger</h3>
+                    <p id="story_desc" class="text-slate-600 text-xs leading-relaxed font-medium">The rising edge of the clock initiates the cycle.</p>
+                    
+                    <div id="story_highlight" class="mt-3 p-2.5 rounded-md bg-sky-50 border border-sky-100 hidden">
+                        <div id="lbl_current_formula" class="text-[9px] font-bold text-sky-600 uppercase mb-0.5">Current Formula</div>
+                        <code id="story_math" class="font-mono text-xs text-slate-800">t = 0</code>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Center Canvas Area -->
+        <div class="col-span-1 lg:col-span-5 flex flex-col">
+            <div class="panel p-2 flex-grow relative overflow-hidden flex flex-col justify-center shadow-lg border-slate-200">
+                <canvas id="timingCanvas" height="520"></canvas>
+            </div>
+        </div>
+
+        <!-- Right Architecture Area (Expanded C & D) -->
+        <div class="col-span-1 lg:col-span-4 flex flex-col">
+            <div class="panel flex-grow flex flex-col p-4 relative overflow-hidden bg-white shadow-lg border-slate-200">
+                <div class="flex items-center gap-2 mb-4">
+                    <svg class="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"></path></svg>
+                    <h3 id="lbl_arch" class="text-xs font-bold text-slate-500 uppercase tracking-wider">System Architecture Pipeline</h3>
+                </div>
+                
+                <!-- Detailed logic level diagram with progress matching delays -->
+                <svg width="100%" height="100%" viewBox="0 0 540 280" class="circuit-svg flex-grow" preserveAspectRatio="xMidYMid meet">
+                    <!-- Clock Network -->
+                    <path d="M 30 250 L 480 250" stroke="#f59e0b" stroke-width="3" fill="none"/>
+                    <path d="M 80 250 L 80 190" stroke="#f59e0b" stroke-width="3" fill="none"/>
+                    <path d="M 440 250 L 440 190" stroke="#f59e0b" stroke-width="3" fill="none"/>
+                    <text x="510" y="255" font-size="14" fill="#f59e0b" font-weight="bold">CLOCK</text>
+
+                    <!-- FF1 Component -->
+                    <rect id="box_ff1" x="40" y="80" width="80" height="110" fill="white" stroke="#94a3b8" stroke-width="2.5" rx="4"/>
+                    <path d="M 40 170 L 55 180 L 40 190" fill="none" stroke="#94a3b8" stroke-width="2"/>
+                    <text x="55" y="140" font-size="15" font-weight="bold">D</text>
+                    <text x="100" y="140" font-size="15" font-weight="bold">Q</text>
+                    <text x="80" y="70" text-anchor="middle" font-size="14" font-weight="bold" fill="#0ea5e9">FF1 (Src)</text>
+                    
+                    <!-- FF1 Progress Bar -->
+                    <rect x="40" y="210" width="80" height="6" fill="#e2e8f0" rx="3"/>
+                    <rect id="prog_ff1" x="40" y="210" width="0" height="6" fill="#f59e0b" rx="3"/>
+                    <text x="80" y="230" text-anchor="middle" font-size="11" fill="#64748b" font-style="italic">t_ffpd</text>
+
+                    <!-- Wire FF1 to Logic -->
+                    <path d="M 120 135 L 180 135" stroke="#cbd5e1" stroke-width="3" fill="none"/>
+
+                    <!-- Logic Component (AND shape) -->
+                    <path id="box_logic" d="M 180 95 L 230 95 A 40 40 0 0 1 230 175 L 180 175 Z" fill="white" stroke="#94a3b8" stroke-width="2.5"/>
+                    <text x="215" y="140" text-anchor="middle" font-size="13" font-weight="bold">Logic</text>
+                    <text x="220" y="70" text-anchor="middle" font-size="14" font-weight="bold" fill="#0ea5e9">Comb. Logic</text>
+                    
+                    <!-- Logic Progress Bar -->
+                    <rect x="180" y="210" width="90" height="6" fill="#e2e8f0" rx="3"/>
+                    <rect id="prog_logic" x="180" y="210" width="0" height="6" fill="#f97316" rx="3"/>
+                    <text x="225" y="230" text-anchor="middle" font-size="11" fill="#64748b" font-style="italic">t_comb</text>
+
+                    <!-- Wire Logic to FF2 (The Delay Wire) -->
+                    <path d="M 270 135 L 400 135" stroke="#e2e8f0" stroke-width="5" fill="none" stroke-linecap="round"/>
+                    <!-- Active Wire Overlay -->
+                    <path id="wire_active" d="M 270 135 L 400 135" stroke="#3b82f6" stroke-width="5" fill="none" stroke-linecap="round" stroke-dasharray="130" stroke-dashoffset="130"/>
+                    <text x="335" y="125" text-anchor="middle" font-size="12" font-style="italic" fill="#0ea5e9" font-weight="bold">t_wire</text>
+
+                    <!-- FF2 Component -->
+                    <rect id="box_ff2" x="400" y="80" width="80" height="110" fill="white" stroke="#94a3b8" stroke-width="2.5" rx="4"/>
+                    <path d="M 400 170 L 415 180 L 400 190" fill="none" stroke="#94a3b8" stroke-width="2"/>
+                    <text x="415" y="140" font-size="15" font-weight="bold">D</text>
+                    <text x="460" y="140" font-size="15" font-weight="bold">Q</text>
+                    <text x="440" y="70" text-anchor="middle" font-size="14" font-weight="bold" fill="#0ea5e9">FF2 (Dest)</text>
+                    <path d="M 480 135 L 530 135" stroke="#cbd5e1" stroke-width="3" fill="none"/>
+
+                    <!-- Animated Signal Dot -->
+                    <circle id="signal_dot" cx="60" cy="135" r="7" fill="#ef4444" class="dot-glow"/>
+                </svg>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- State Variables ---
+        let lang = 'en';
+        let isPlaying = true;
+        let isDragging = false;
+        let virtualTime = 0;
+        let lastRealTime = 0;
+        let currentPhase = -1;
+        let p = { t_clk: 100, t_ffpd: 15, t_comb: 45, t_wire: 5, t_setup: 15, t_hold: 10 };
+        
+        let globalStartBit = 0; 
+
+        // Force signal toggle on button press
+        function randomizeData() {
+            globalStartBit = 1 - globalStartBit;
+            if(!isPlaying) renderFrame();
+        }
+
+        const t = {
+            en: {
+                main_title: "Interactive Timing Analysis", btn_randomize: "Randomize Signal",
+                timing_valid: "✓ TIMING VALID", setup_violation: "✗ SETUP VIOLATION",
+                lbl_parameters: "Parameters", lbl_t_clk: "Clock Period (t<sub class='text-[9px]'>clk</sub>)",
+                lbl_t_ffpd: "FF Delay (t<sub class='text-[9px]'>ffpd</sub>)", lbl_t_comb: "Logic Delay (t<sub class='text-[9px]'>comb</sub>)",
+                lbl_t_wire: "Wire Delay (t<sub class='text-[9px]'>wire</sub>)",
+                lbl_t_setup: "Setup Time (t<sub class='text-[9px]'>setup</sub>)", lbl_t_hold: "Hold Time (t<sub class='text-[9px]'>hold</sub>)",
+                lbl_anim_speed: "Scanner Speed", btn_reset: "Reset Defaults",
+                lbl_live_analysis: "Live Analysis", lbl_current_formula: "Current Formula",
+                lbl_arch: "System Architecture Pipeline",
+                txt_controls_hint: "Drag or Spacebar",
+                story: {
+                    p0: { title: "Clock Trigger", desc: "The rising edge of the clock arrives. FF1 captures the data and begins processing." },
+                    p1: { title: "Flip-Flop Delay", desc: "FF1 is evaluating its internal state. The output (Q) transitions sharply exactly after t_ffpd." },
+                    p2: { title: "Logic & Wire Delay", desc: "The signal now races through the combinational gates and interconnecting wires. FF2's input will change only after this combined delay finishes." },
+                    p3: { title: "Setup Margin (Stable)", desc: "Success! The data arrived early and is resting perfectly stable. This provides a safety buffer before the strict setup window." },
+                    p4: { title: "Setup Window", desc: "CRITICAL: The data MUST be completely stable during this window right before the clock edge." },
+                    p5: { title: "Hold Window", desc: "Clock ticked! The data must REMAIN stable for a short period to be locked securely into FF2." },
+                    p6: { title: "SETUP VIOLATION!", desc: "The total path delay is too long! The signal is still transitioning inside the critical setup window. FF2 will capture garbage data." }
+                }
+            },
+            kr: {
+                main_title: "인터랙티브 타이밍 분석", btn_randomize: "신호 반전",
+                timing_valid: "✓ 타이밍 정상", setup_violation: "✗ 셋업 위반",
+                lbl_parameters: "매개변수 설정", lbl_t_clk: "클럭 주기 (t<sub class='text-[9px]'>clk</sub>)",
+                lbl_t_ffpd: "플립플롭 지연 (t<sub class='text-[9px]'>ffpd</sub>)", lbl_t_comb: "로직 지연 (t<sub class='text-[9px]'>comb</sub>)",
+                lbl_t_wire: "와이어 지연 (t<sub class='text-[9px]'>wire</sub>)",
+                lbl_t_setup: "셋업 타임 (t<sub class='text-[9px]'>setup</sub>)", lbl_t_hold: "홀드 타임 (t<sub class='text-[9px]'>hold</sub>)",
+                lbl_anim_speed: "스캐너 속도", btn_reset: "기본값 복원",
+                lbl_live_analysis: "실시간 분석", lbl_current_formula: "현재 공식",
+                lbl_arch: "시스템 아키텍처 파이프라인",
+                txt_controls_hint: "드래그 또는 스페이스바",
+                story: {
+                    p0: { title: "클럭 트리거", desc: "클럭의 상승 에지가 도착합니다. FF1이 데이터를 캡처하고 처리를 시작합니다." },
+                    p1: { title: "플립플롭 지연", desc: "FF1이 내부 상태를 평가 중입니다. 출력(Q)은 t_ffpd 직후 급격히 전환됩니다." },
+                    p2: { title: "로직 및 와이어 지연", desc: "신호가 조합 게이트와 상호 연결 와이어를 통과합니다. 이 결합된 지연 시간이 끝난 후에야 FF2의 입력이 변경됩니다." },
+                    p3: { title: "셋업 마진 (안정)", desc: "성공! 데이터가 일찍 도착하여 완전히 안정적으로 대기 중입니다. 이는 엄격한 셋업 윈도우 전의 안전 여유를 제공합니다." },
+                    p4: { title: "셋업 윈도우", desc: "중요: 데이터는 클럭 에지 직전 이 윈도우 동안 완전히 안정적이어야 합니다." },
+                    p5: { title: "홀드 윈도우", desc: "클럭 틱 발생! FF2에 안전하게 잠기려면 에지 이후 잠시 동안 데이터가 안정적으로 유지되어야 합니다." },
+                    p6: { title: "셋업 위반!", desc: "전체 경로 지연이 너무 깁니다! 중요한 셋업 윈도우 내에서 신호가 여전히 변경 중입니다. FF2가 쓰레기 데이터를 캡처하게 됩니다." }
+                }
+            }
+        };
+
+        // --- DOM Elements & Context ---
+        const canvas = document.getElementById('timingCanvas');
+        const ctx = canvas.getContext('2d');
+        const layout = { marginLeft: 110, marginRight: 20, trackHeight: 115, paddingTop: 30 };
+
+        const C = { text: '#0f172a', line: '#0f172a', dimBlue: '#0ea5e9', scanner: 'rgba(236, 72, 153, 0.8)', violation: 'rgba(239, 68, 68, 0.15)' };
+
+        // --- Interactivity ---
+        function toggleLanguage() {
+            lang = document.getElementById('toggle_lang').checked ? 'kr' : 'en';
+            applyTranslations();
+            updateStoryteller(currentPhase, true);
+        }
+
+        function applyTranslations() {
+            document.getElementById('main_title').innerText = t[lang].main_title;
+            document.getElementById('btn_randomize').innerText = t[lang].btn_randomize;
+            document.getElementById('lbl_parameters').innerText = t[lang].lbl_parameters;
+            document.getElementById('lbl_t_clk').innerHTML = t[lang].lbl_t_clk;
+            document.getElementById('lbl_t_ffpd').innerHTML = t[lang].lbl_t_ffpd;
+            document.getElementById('lbl_t_comb').innerHTML = t[lang].lbl_t_comb;
+            document.getElementById('lbl_t_wire').innerHTML = t[lang].lbl_t_wire;
+            document.getElementById('lbl_t_setup').innerHTML = t[lang].lbl_t_setup;
+            document.getElementById('lbl_t_hold').innerHTML = t[lang].lbl_t_hold;
+            document.getElementById('lbl_anim_speed').innerText = t[lang].lbl_anim_speed;
+            document.getElementById('btn_reset').innerText = t[lang].btn_reset;
+            document.getElementById('lbl_live_analysis').innerText = t[lang].lbl_live_analysis;
+            document.getElementById('lbl_current_formula').innerText = t[lang].lbl_current_formula;
+            document.getElementById('lbl_arch').innerText = t[lang].lbl_arch;
+            document.getElementById('txt_controls_hint').innerText = t[lang].txt_controls_hint;
+            checkStatus();
+        }
+
+        function togglePlay() {
+            isPlaying = !isPlaying;
+            document.getElementById('icon_pause').classList.toggle('hidden');
+            document.getElementById('icon_play').classList.toggle('hidden');
+            if (isPlaying) { lastRealTime = performance.now(); requestAnimationFrame(animateLoop); }
+        }
+
+        // Mouse Scrubbing
+        canvas.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            if(isPlaying) togglePlay(); 
+            scrubMouse(e);
+        });
+        window.addEventListener('mousemove', (e) => { if (isDragging) scrubMouse(e); });
+        window.addEventListener('mouseup', () => { isDragging = false; });
+
+        function scrubMouse(e) {
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const timeStart = -15, timeEnd = p.t_clk + Math.max(30, p.t_hold + 20);
+            const pxPerNs = (canvas.width - layout.marginLeft - layout.marginRight) / (timeEnd - timeStart);
+            let t = (x - layout.marginLeft) / pxPerNs + timeStart;
+            t = Math.max(timeStart, Math.min(timeEnd, t));
+            virtualTime = (t + 10) * 30;
+            renderFrame();
+        }
+
+        // Keyboard Controls
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') { e.preventDefault(); togglePlay(); }
+            else if (!isPlaying) {
+                if (e.key === 'ArrowRight') { virtualTime += 45; renderFrame(); } 
+                else if (e.key === 'ArrowLeft') { 
+                    virtualTime -= 45; 
+                    if (virtualTime < 0) virtualTime += (p.t_clk + p.t_hold + 20) * 30; 
+                    renderFrame(); 
+                }
+            }
+        });
+
+        function resetDefaults() {
+            document.getElementById('t_clk').value = 100;
+            document.getElementById('t_ffpd').value = 15;
+            document.getElementById('t_comb').value = 45;
+            document.getElementById('t_wire').value = 5;
+            document.getElementById('t_setup').value = 15;
+            document.getElementById('t_hold').value = 10;
+            document.getElementById('anim_speed').value = 1;
+            document.getElementById('val_anim_speed').innerText = '1.0x';
+            updateParams();
+        }
+
+        function updateParams() {
+            p.t_clk = parseInt(document.getElementById('t_clk').value);
+            p.t_ffpd = parseInt(document.getElementById('t_ffpd').value);
+            p.t_comb = parseInt(document.getElementById('t_comb').value);
+            p.t_wire = parseInt(document.getElementById('t_wire').value);
+            p.t_setup = parseInt(document.getElementById('t_setup').value);
+            p.t_hold = parseInt(document.getElementById('t_hold').value);
+
+            document.getElementById('val_t_clk').innerText = p.t_clk + " ns";
+            document.getElementById('val_t_ffpd').innerText = p.t_ffpd + " ns";
+            document.getElementById('val_t_comb').innerText = p.t_comb + " ns";
+            document.getElementById('val_t_wire').innerText = p.t_wire + " ns";
+            document.getElementById('val_t_setup').innerText = p.t_setup + " ns";
+            document.getElementById('val_t_hold').innerText = p.t_hold + " ns";
+
+            checkStatus();
+            if(!isPlaying) renderFrame();
+        }
+
+        function checkStatus() {
+            const setupMargin = p.t_clk - (p.t_ffpd + p.t_comb + p.t_wire + p.t_setup);
+            const badge = document.getElementById('status_badge');
+            if (setupMargin >= 0) {
+                badge.className = "px-3 py-1 rounded-full text-[10px] font-bold transition-colors shadow-sm bg-green-100 text-green-700 border border-green-200";
+                badge.innerText = t[lang].timing_valid;
+            } else {
+                badge.className = "px-3 py-1 rounded-full text-[10px] font-bold transition-colors shadow-sm bg-red-100 text-red-700 border border-red-200 animate-pulse";
+                badge.innerText = t[lang].setup_violation;
+            }
+        }
+
+        // --- Story Update ---
+        function updateStoryteller(phase, force = false) {
+            if (currentPhase === phase && !force) return;
+            currentPhase = phase;
+
+            const title = document.getElementById('story_title');
+            const desc = document.getElementById('story_desc');
+            const highlight = document.getElementById('story_highlight');
+            const math = document.getElementById('story_math');
+            const container = document.getElementById('story_container');
+
+            container.classList.remove('story-enter-active');
+            container.classList.add('story-enter');
+            
+            setTimeout(() => {
+                highlight.style.display = 'block';
+                const s = t[lang].story["p"+phase];
+
+                switch(phase) {
+                    case 0:
+                        title.innerText = s.title; title.className = "text-lg font-bold mb-1 transition-colors duration-300 text-sky-600";
+                        desc.innerText = s.desc; highlight.className = "mt-2 p-2.5 rounded-md border bg-sky-50 border-sky-100";
+                        highlight.querySelector('div').className = "text-[9px] font-bold uppercase mb-0.5 text-sky-600"; math.innerHTML = `t = 0`; break;
+                    case 1:
+                        title.innerText = s.title; title.className = "text-lg font-bold mb-1 transition-colors duration-300 text-amber-500";
+                        desc.innerText = s.desc; highlight.className = "mt-2 p-2.5 rounded-md border bg-amber-50 border-amber-100";
+                        highlight.querySelector('div').className = "text-[9px] font-bold uppercase mb-0.5 text-amber-600"; math.innerHTML = `Delay: t<sub>ffpd</sub> = ${p.t_ffpd}ns`; break;
+                    case 2:
+                        title.innerText = s.title; title.className = "text-lg font-bold mb-1 transition-colors duration-300 text-orange-500";
+                        desc.innerText = s.desc; highlight.className = "mt-2 p-2.5 rounded-md border bg-orange-50 border-orange-100";
+                        highlight.querySelector('div').className = "text-[9px] font-bold uppercase mb-0.5 text-orange-600"; math.innerHTML = `Delay: t<sub>comb</sub> + t<sub>wire</sub> = ${p.t_comb + p.t_wire}ns`; break;
+                    case 3:
+                        title.innerText = s.title; title.className = "text-lg font-bold mb-1 transition-colors duration-300 text-emerald-500";
+                        desc.innerText = s.desc; highlight.className = "mt-2 p-2.5 rounded-md border bg-emerald-50 border-emerald-100";
+                        highlight.querySelector('div').className = "text-[9px] font-bold uppercase mb-0.5 text-emerald-600"; math.innerHTML = `Margin = t<sub>clk</sub> - (t<sub>ffpd</sub> + t<sub>comb</sub> + t<sub>wire</sub> + t<sub>setup</sub>)`; break;
+                    case 4:
+                        title.innerText = s.title; title.className = "text-lg font-bold mb-1 transition-colors duration-300 text-indigo-500";
+                        desc.innerText = s.desc; highlight.className = "mt-2 p-2.5 rounded-md border bg-indigo-50 border-indigo-100";
+                        highlight.querySelector('div').className = "text-[9px] font-bold uppercase mb-0.5 text-indigo-600"; math.innerHTML = `Window: t<sub>setup</sub> = ${p.t_setup}ns`; break;
+                    case 5:
+                        title.innerText = s.title; title.className = "text-lg font-bold mb-1 transition-colors duration-300 text-teal-600";
+                        desc.innerText = s.desc; highlight.className = "mt-2 p-2.5 rounded-md border bg-teal-50 border-teal-100";
+                        highlight.querySelector('div').className = "text-[9px] font-bold uppercase mb-0.5 text-teal-600"; math.innerHTML = `Window: t<sub>hold</sub> = ${p.t_hold}ns`; break;
+                    case 6:
+                        title.innerText = s.title; title.className = "text-lg font-bold mb-1 transition-colors duration-300 text-red-600";
+                        desc.innerText = s.desc; highlight.className = "mt-2 p-2.5 rounded-md border bg-red-50 border-red-100";
+                        highlight.querySelector('div').className = "text-[9px] font-bold uppercase mb-0.5 text-red-600"; math.innerHTML = `t<sub>ffpd</sub> + t<sub>comb</sub> + t<sub>wire</sub> > t<sub>clk</sub> - t<sub>setup</sub>`; break;
+                }
+                void container.offsetWidth; container.classList.remove('story-enter'); container.classList.add('story-enter-active');
+            }, 50);
+        }
+
+        // Architecture Animation Mapping
+        function updateArchDiagram(simTimeNs, phase) {
+            const dot = document.getElementById('signal_dot');
+            const boxFF1 = document.getElementById('box_ff1');
+            const boxLogic = document.getElementById('box_logic');
+            const boxFF2 = document.getElementById('box_ff2');
+            const progFF1 = document.getElementById('prog_ff1');
+            const progLogic = document.getElementById('prog_logic');
+            const wireActive = document.getElementById('wire_active');
+            
+            // Reset Styles
+            boxFF1.setAttribute('stroke', '#94a3b8'); boxLogic.setAttribute('stroke', '#94a3b8'); boxFF2.setAttribute('stroke', '#94a3b8');
+            progFF1.setAttribute('width', '0'); progLogic.setAttribute('width', '0');
+            wireActive.setAttribute('stroke-dashoffset', '130');
+
+            if (phase === 0) { 
+                dot.setAttribute('cx', 55); dot.setAttribute('cy', 135); // At D input of FF1
+            } 
+            else if (phase === 1) { 
+                let prog = Math.min(1, Math.max(0, simTimeNs / p.t_ffpd));
+                progFF1.setAttribute('width', 80 * prog);
+                dot.setAttribute('cx', 55 + (45 * prog)); // Moves inside FF1 to Q
+                boxFF1.setAttribute('stroke', '#f59e0b');
+            } 
+            else if (phase === 2 || phase === 6) {
+                progFF1.setAttribute('width', 80);
+                
+                let t_logic = simTimeNs - p.t_ffpd;
+                let progL = Math.min(1, Math.max(0, t_logic / p.t_comb));
+                progLogic.setAttribute('width', 90 * progL);
+                
+                if (progL < 1) {
+                    dot.setAttribute('cx', 140 + (100 * progL)); // Moving to/through Logic
+                    if(phase===6) boxLogic.setAttribute('stroke', '#ef4444'); else boxLogic.setAttribute('stroke', '#f97316');
+                } else {
+                    boxLogic.setAttribute('stroke', '#94a3b8');
+                    let t_w = t_logic - p.t_comb;
+                    let progW = Math.min(1, Math.max(0, t_w / p.t_wire));
+                    wireActive.setAttribute('stroke-dashoffset', 130 * (1 - progW));
+                    dot.setAttribute('cx', 270 + (130 * progW)); // Moving along wire
+                }
+                
+                if (phase === 6) boxFF2.setAttribute('stroke', '#ef4444'); // Target FF is red if violation
+            } 
+            else {
+                progFF1.setAttribute('width', 80); progLogic.setAttribute('width', 90); wireActive.setAttribute('stroke-dashoffset', '0');
+                dot.setAttribute('cx', 415); dot.setAttribute('cy', 135); // Arrived at FF2 D
+                if (phase === 4) boxFF2.setAttribute('stroke', '#6366f1'); // Setup Window
+                if (phase === 5) boxFF2.setAttribute('stroke', '#14b8a6'); // Hold Window
+            }
+        }
+
+        function renderFrame() {
+            const loopDuration = p.t_clk + p.t_hold + 20;
+            let simTimeNs = (virtualTime / 30) % loopDuration;
+            let t = simTimeNs - 10; 
+
+            let phase = 0;
+            if (t < 0) phase = 0; 
+            else if (t < p.t_ffpd) phase = 1; 
+            else if (t < p.t_ffpd + p.t_comb + p.t_wire) { if (t > p.t_clk - p.t_setup) phase = 6; else phase = 2; }
+            else if (t < p.t_clk - p.t_setup) phase = 3; 
+            else if (t < p.t_clk) phase = 4; 
+            else if (t < p.t_clk + p.t_hold) phase = 5; 
+            else phase = 0;
+
+            if (p.t_ffpd + p.t_comb + p.t_wire > p.t_clk - p.t_setup && t > p.t_clk - p.t_setup && t < p.t_clk) phase = 6;
+
+            updateStoryteller(phase, false); drawTimingCanvas(t, phase); updateArchDiagram(t, phase);
+        }
+
+        function animateLoop(now) {
+            if (!isPlaying) return;
+            if (!lastRealTime) lastRealTime = now;
+            let delta = now - lastRealTime; if (delta > 100) delta = 16; lastRealTime = now;
+            
+            // Reduced Speed Multiplier significantly for better readability (0.08 is about 3x slower than before)
+            virtualTime += (delta * parseFloat(document.getElementById('anim_speed').value)) * 0.08;
+            
+            renderFrame(); requestAnimationFrame(animateLoop);
+        }
+
+        // --- DRAWING CANVAS ---
+        function drawTimingCanvas(scannerT, currentPhase) {
+            const width = canvas.parentElement.clientWidth; canvas.width = width;
+            ctx.clearRect(0, 0, width, canvas.height);
+            
+            const timeStart = -15, timeEnd = p.t_clk + Math.max(30, p.t_hold + 20);
+            const pxPerNs = (width - layout.marginLeft - layout.marginRight) / (timeEnd - timeStart);
+            function t2x(t) { return layout.marginLeft + (t - timeStart) * pxPerNs; }
+
+            ctx.font = '13px Inter'; ctx.textBaseline = 'middle';
+            
+            // Background Guides
+            ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 1; ctx.setLineDash([5, 5]);
+            [0, p.t_clk].forEach(t => { ctx.beginPath(); ctx.moveTo(t2x(t), 20); ctx.lineTo(t2x(t), layout.paddingTop + layout.trackHeight * 4); ctx.stroke(); });
+            ctx.setLineDash([]);
+
+            // Helper to draw shaded uncertainty
+            function drawDelayShade(startOffset, duration, yTop, yBot) {
+                for (let cycle = 0; cycle <= 1; cycle++) {
+                    let startX = t2x(cycle * p.t_clk + startOffset);
+                    let endX = t2x(cycle * p.t_clk + startOffset + duration);
+                    
+                    ctx.fillStyle = 'rgba(148, 163, 184, 0.15)';
+                    ctx.fillRect(startX, yTop, endX - startX, yBot - yTop);
+                    
+                    ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 1; ctx.setLineDash([2, 2]); ctx.beginPath();
+                    ctx.moveTo(startX, yTop); ctx.lineTo(startX, yBot); ctx.stroke();
+                    ctx.moveTo(endX, yTop); ctx.lineTo(endX, yBot); ctx.stroke();
+                    ctx.setLineDash([]);
+                }
+            }
+
+            // Helper to draw completely sharp, unambiguous signal traces
+            function drawSolidWaveform(yBase, name, delayTotal, highlightPhaseNum, dimLabel, dimDuration) {
+                ctx.fillStyle = C.text; ctx.textAlign = 'right'; ctx.font = '13px Inter';
+                let lines = name.split('\n'); lines.forEach((line, li) => { ctx.fillText(line, layout.marginLeft - 12, yBase - 15 + (li * 18)); });
+
+                const yHigh = yBase - 35, yLow = yBase + 5;
+                
+                ctx.strokeStyle = C.line; ctx.lineWidth = 2.5; ctx.beginPath();
+                let state = globalStartBit;
+                let yCurrent = state ? yHigh : yLow;
+                ctx.moveTo(t2x(timeStart), yCurrent);
+
+                for (let cycle = -1; cycle <= 2; cycle++) {
+                    let transTime = cycle * p.t_clk + delayTotal;
+                    if (transTime > timeStart && transTime <= timeEnd) {
+                        ctx.lineTo(t2x(transTime), yCurrent);
+                        state = 1 - state; // Strictly Toggle
+                        yCurrent = state ? yHigh : yLow;
+                        ctx.lineTo(t2x(transTime), yCurrent); // Perfect vertical edge
+                    }
+                }
+                ctx.lineTo(t2x(timeEnd), yCurrent);
+                ctx.stroke();
+                
+                // Shade evaluation period
+                drawDelayShade(delayTotal - dimDuration, dimDuration, yHigh, yLow);
+
+                // Dimension annotation
+                if(dimLabel) {
+                    drawDimension(t2x(delayTotal - dimDuration), t2x(delayTotal), yLow + 25, dimLabel, currentPhase === highlightPhaseNum);
+                }
+            }
+
+            function drawDimension(x1, x2, y, text, highlight) {
+                ctx.strokeStyle = highlight ? '#f43f5e' : C.dimBlue; ctx.fillStyle = highlight ? '#f43f5e' : C.dimBlue;
+                ctx.lineWidth = 1.5; ctx.font = 'italic 12px Inter';
+                ctx.beginPath(); ctx.moveTo(x1 + 6, y); ctx.lineTo(x2 - 6, y); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(x1, y); ctx.lineTo(x1+8, y-4); ctx.lineTo(x1+8, y+4); ctx.fill();
+                ctx.beginPath(); ctx.moveTo(x2, y); ctx.lineTo(x2-8, y-4); ctx.lineTo(x2-8, y+4); ctx.fill();
+                ctx.beginPath(); ctx.moveTo(x1, y-12); ctx.lineTo(x1, y+12); ctx.moveTo(x2, y-12); ctx.lineTo(x2, y+12); ctx.stroke();
+                ctx.textAlign = 'center'; ctx.fillText(text, (x1 + x2) / 2, y + 12);
+            }
+
+            // 1. Clock (Sharp Rendering Fixed to canvas bounds)
+            let clkY = layout.paddingTop;
+            ctx.fillStyle = C.text; ctx.textAlign = 'right'; ctx.font = '13px Inter'; ctx.fillText("CLOCK", layout.marginLeft - 12, clkY - 15);
+            ctx.strokeStyle = C.line; ctx.lineWidth = 2.5; ctx.beginPath();
+            let phaseW = p.t_clk / 2, yH = clkY - 35, yL = clkY + 5;
+            
+            ctx.moveTo(t2x(timeStart), yL);
+            for (let cycle = -1; cycle <= 3; cycle++) {
+                let rise = cycle * p.t_clk;
+                let fall = rise + phaseW;
+                if (rise > timeStart && rise <= timeEnd) { ctx.lineTo(t2x(rise), yL); ctx.lineTo(t2x(rise), yH); }
+                if (fall > timeStart && fall <= timeEnd) { ctx.lineTo(t2x(fall), yH); ctx.lineTo(t2x(fall), yL); }
+            }
+            // Ensure proper termination at right edge
+            let finalState = (timeEnd % p.t_clk) < phaseW ? yH : yL;
+            ctx.lineTo(t2x(timeEnd), finalState);
+            ctx.stroke();
+
+            drawDimension(t2x(0), t2x(phaseW), yL + 25, "t_H", false); drawDimension(t2x(phaseW), t2x(p.t_clk), yL + 25, "t_L", false);
+            drawDimension(t2x(0), t2x(p.t_clk), yL + 45, "t_clk", false);
+
+            // 2. Data Tracks (Clean solid traces)
+            drawSolidWaveform(layout.paddingTop + layout.trackHeight, "flip-flop\noutputs", p.t_ffpd, 1, "t_ffpd", p.t_ffpd);
+            
+            drawSolidWaveform(layout.paddingTop + layout.trackHeight * 2, "combinational\noutputs", p.t_ffpd + p.t_comb, 2, "t_comb", p.t_comb);
+            // Link logic track vertically
+            ctx.strokeStyle = C.dimBlue; ctx.lineWidth = 1; ctx.setLineDash([3, 3]); ctx.beginPath(); 
+            ctx.moveTo(t2x(p.t_ffpd), layout.paddingTop + layout.trackHeight - 35); ctx.lineTo(t2x(p.t_ffpd), layout.paddingTop + layout.trackHeight * 2 + 30); ctx.stroke(); ctx.setLineDash([]);
+
+            // 3. FF Inputs (Delayed due to Wire logic)
+            drawSolidWaveform(layout.paddingTop + layout.trackHeight * 3, "flip-flop\ninputs", p.t_ffpd + p.t_comb + p.t_wire, 2, "t_wire", p.t_wire);
+            // Link wire track vertically
+            ctx.strokeStyle = C.dimBlue; ctx.lineWidth = 1; ctx.setLineDash([3, 3]); ctx.beginPath(); 
+            ctx.moveTo(t2x(p.t_ffpd + p.t_comb), layout.paddingTop + layout.trackHeight * 2 - 35); ctx.lineTo(t2x(p.t_ffpd + p.t_comb), layout.paddingTop + layout.trackHeight * 3 + 30); ctx.stroke(); ctx.setLineDash([]);
+            
+            // Setup & Hold Margins
+            let lastYLow = layout.paddingTop + layout.trackHeight * 3 + 5;
+            drawDimension(t2x(p.t_clk - p.t_setup), t2x(p.t_clk), lastYLow + 25, "t_setup", currentPhase === 4);
+            drawDimension(t2x(p.t_clk), t2x(p.t_clk + p.t_hold), lastYLow + 25, "t_hold", currentPhase === 5);
+            
+            let endWireT = p.t_ffpd + p.t_comb + p.t_wire, startSetupT = p.t_clk - p.t_setup;
+            if (endWireT < startSetupT) {
+                ctx.strokeStyle = currentPhase === 3 ? '#10b981' : C.dimBlue; ctx.lineWidth = 1.5; ctx.beginPath();
+                ctx.moveTo(t2x(endWireT), lastYLow); ctx.lineTo(t2x(endWireT), lastYLow + 42);
+                ctx.moveTo(t2x(startSetupT), lastYLow); ctx.lineTo(t2x(startSetupT), lastYLow + 42);
+                ctx.moveTo(t2x(endWireT), lastYLow + 42); ctx.lineTo(t2x(startSetupT), lastYLow + 42); ctx.stroke();
+                
+                // Centered text for Setup Margin as requested
+                ctx.fillStyle = currentPhase === 3 ? '#10b981' : C.dimBlue; ctx.textAlign = 'center'; ctx.font = 'italic 11px Inter';
+                ctx.fillText("setup margin", (t2x(endWireT) + t2x(startSetupT)) / 2, lastYLow + 55);
+            } else {
+                ctx.fillStyle = C.violation;
+                ctx.fillRect(t2x(startSetupT), lastYLow - 40, t2x(endWireT) - t2x(startSetupT), 40);
+            }
+
+            // Draw Magical Scanner Beam
+            if (scannerT >= timeStart && scannerT <= timeEnd) {
+                let sX = t2x(scannerT);
+                ctx.shadowBlur = 15; ctx.shadowColor = C.scanner;
+                ctx.strokeStyle = C.scanner; ctx.lineWidth = 2; ctx.beginPath(); 
+                ctx.moveTo(sX, layout.paddingTop - 20); ctx.lineTo(sX, layout.paddingTop + layout.trackHeight * 4); ctx.stroke();
+                ctx.shadowBlur = 0; ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(sX, layout.paddingTop - 20, 4, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+            }
+        }
+
+        window.onload = () => {
+            window.addEventListener('resize', () => { updateParams(); });
+            requestAnimationFrame(animateLoop);
+        };
+    </script>
+</body>
+</html>
