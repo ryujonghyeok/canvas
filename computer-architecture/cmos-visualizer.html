@@ -1,0 +1,1054 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CMOS Gate Visualizer</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Space+Grotesk:wght@300;400;500&display=swap');
+
+  :root {
+    --bg: #0a0e17;
+    --surface: #111827;
+    --surface2: #1a2235;
+    --border: #1e2d45;
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --vdd-color: #f97316;
+    --gnd-color: #3b82f6;
+    --high-color: #f97316;
+    --low-color: #3b82f6;
+    --pmos-color: #a78bfa;
+    --nmos-color: #34d399;
+    --wire-idle: #2d4060;
+    --accent: #06b6d4;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* subtle grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(6,182,212,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(6,182,212,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .app {
+    position: relative;
+    z-index: 1;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 24px 20px;
+  }
+
+  header {
+    text-align: center;
+    margin-bottom: 32px;
+  }
+
+  header h1 {
+    font-size: 13px;
+    letter-spacing: 0.25em;
+    color: var(--accent);
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+
+  header h2 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 28px;
+    font-weight: 300;
+    color: var(--text);
+    letter-spacing: -0.02em;
+  }
+
+  header p {
+    margin-top: 8px;
+    font-size: 12px;
+    color: var(--muted);
+    letter-spacing: 0.05em;
+  }
+
+  .legend {
+    display: flex;
+    gap: 20px;
+    justify-content: center;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.04em;
+  }
+
+  .legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+  }
+
+  .legend-line {
+    width: 24px;
+    height: 3px;
+    border-radius: 2px;
+  }
+
+  .gates-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+  }
+
+  @media (max-width: 800px) {
+    .gates-container { grid-template-columns: 1fr; }
+  }
+
+  .gate-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 24px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .gate-panel::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    opacity: 0.5;
+  }
+
+  .gate-title {
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    color: var(--accent);
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+
+  .gate-subtitle {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 18px;
+    font-weight: 400;
+    color: var(--text);
+    margin-bottom: 16px;
+  }
+
+  .gate-formula {
+    font-size: 11px;
+    color: var(--muted);
+    margin-bottom: 20px;
+    letter-spacing: 0.05em;
+  }
+
+  /* Controls */
+  .controls {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 20px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+
+  .input-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .toggle-btn {
+    width: 44px;
+    height: 24px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    cursor: pointer;
+    position: relative;
+    transition: background 0.3s, border-color 0.3s;
+    outline: none;
+  }
+
+  .toggle-btn::after {
+    content: '';
+    position: absolute;
+    top: 3px; left: 3px;
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: var(--muted);
+    transition: transform 0.3s, background 0.3s;
+  }
+
+  .toggle-btn.active {
+    background: rgba(249,115,22,0.15);
+    border-color: var(--vdd-color);
+  }
+
+  .toggle-btn.active::after {
+    transform: translateX(20px);
+    background: var(--vdd-color);
+  }
+
+  .input-label {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text);
+    min-width: 14px;
+  }
+
+  .input-value {
+    font-size: 11px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    transition: all 0.3s;
+  }
+
+  .input-value.high {
+    background: rgba(249,115,22,0.12);
+    border-color: rgba(249,115,22,0.4);
+    color: var(--vdd-color);
+  }
+
+  .output-display {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 12px;
+    margin-top: 8px;
+    padding: 8px 12px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+  }
+
+  .output-val {
+    font-size: 16px;
+    font-weight: 700;
+    transition: color 0.5s;
+  }
+
+  .output-val.high { color: var(--vdd-color); }
+  .output-val.low  { color: var(--gnd-color); }
+
+  /* SVG canvas */
+  .schematic-wrap {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    margin-top: 16px;
+  }
+
+  svg {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+
+  /* Wire styles */
+  .wire {
+    stroke: var(--wire-idle);
+    stroke-width: 2;
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  /* MOSFET body */
+  .mosfet-body {
+    fill: none;
+    stroke-width: 1.5;
+    stroke-linecap: round;
+  }
+
+  .pmos-body { stroke: var(--pmos-color); }
+  .nmos-body { stroke: var(--nmos-color); }
+
+  .mosfet-gate-line {
+    stroke-width: 2;
+    stroke-linecap: round;
+  }
+
+  .pmos-gate { stroke: var(--pmos-color); }
+  .nmos-gate { stroke: var(--nmos-color); }
+
+  /* PMOS circle bubble */
+  .pmos-bubble {
+    fill: none;
+    stroke: var(--pmos-color);
+    stroke-width: 1.5;
+  }
+
+  /* Labels */
+  .label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    fill: var(--muted);
+  }
+
+  .label-vdd { fill: var(--vdd-color); font-size: 11px; font-weight: 500; }
+  .label-gnd { fill: var(--gnd-color); font-size: 11px; font-weight: 500; }
+  .label-pmos { fill: var(--pmos-color); font-size: 9px; }
+  .label-nmos { fill: var(--nmos-color); font-size: 9px; }
+  .label-input { fill: var(--text); font-size: 11px; font-weight: 500; }
+  .label-out { fill: var(--accent); font-size: 11px; font-weight: 500; }
+
+  /* Signal particles */
+  .particle {
+    r: 4;
+    opacity: 0;
+  }
+
+  /* Glow filter for active wires */
+  .wire-active {
+    stroke-width: 2.5;
+    filter: drop-shadow(0 0 3px currentColor);
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>CMOS Circuit Simulator</h1>
+    <h2>Interactive Gate Visualizer</h2>
+    <p>Signal propagation · PMOS (purple) · NMOS (green) · Toggle inputs to observe</p>
+  </header>
+
+  <div class="legend">
+    <div class="legend-item">
+      <div class="legend-line" style="background:var(--vdd-color)"></div>
+      VDD / Logic HIGH
+    </div>
+    <div class="legend-item">
+      <div class="legend-line" style="background:var(--gnd-color)"></div>
+      GND / Logic LOW
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="background:var(--pmos-color)"></div>
+      PMOS transistor
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="background:var(--nmos-color)"></div>
+      NMOS transistor
+    </div>
+    <div class="legend-line" style="background:var(--wire-idle); width:24px"></div>
+    <div class="legend-item" style="margin-left:-16px">Idle wire</div>
+  </div>
+
+  <div class="gates-container">
+    <!-- NOR GATE -->
+    <div class="gate-panel" id="nor-panel">
+      <div class="gate-title">Gate 01</div>
+      <div class="gate-subtitle">Two-Input NOR Gate</div>
+      <div class="gate-formula">Y = (A+B)' &nbsp;|&nbsp; PMOS series · NMOS parallel</div>
+      <div class="controls">
+        <div class="input-toggle">
+          <span class="input-label">A</span>
+          <button class="toggle-btn" id="nor-a-btn" onclick="toggle('nor','a')"></button>
+          <span class="input-value" id="nor-a-val">0</span>
+        </div>
+        <div class="input-toggle">
+          <span class="input-label">B</span>
+          <button class="toggle-btn" id="nor-b-btn" onclick="toggle('nor','b')"></button>
+          <span class="input-value" id="nor-b-val">0</span>
+        </div>
+        <div style="margin-left:auto">
+          <div class="output-display">
+            <span style="color:var(--muted);font-size:11px">Y =</span>
+            <span class="output-val" id="nor-out-val">1</span>
+            <span style="color:var(--muted);font-size:10px" id="nor-out-label">HIGH</span>
+          </div>
+        </div>
+      </div>
+      <div class="schematic-wrap">
+        <svg id="nor-svg" viewBox="0 0 340 420" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <filter id="glow-orange">
+              <feGaussianBlur stdDeviation="2" result="blur"/>
+              <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+            <filter id="glow-blue">
+              <feGaussianBlur stdDeviation="2" result="blur"/>
+              <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+          </defs>
+
+          <!-- VDD rail -->
+          <line x1="170" y1="16" x2="170" y2="36" class="wire" id="nor-vdd-wire"/>
+          <text x="170" y="13" text-anchor="middle" class="label label-vdd">VDD</text>
+          <!-- VDD hat -->
+          <line x1="155" y1="20" x2="185" y2="20" stroke="var(--vdd-color)" stroke-width="2.5" stroke-linecap="round"/>
+          <line x1="162" y1="26" x2="178" y2="26" stroke="var(--vdd-color)" stroke-width="2" stroke-linecap="round"/>
+
+          <!-- PMOS A (top) — source at top, drain at bottom, gate on left -->
+          <!-- Source connected to VDD rail -->
+          <line x1="170" y1="36" x2="170" y2="60" class="wire" id="nor-pA-src"/>
+          <!-- PMOS A body -->
+          <!-- Channel line (vertical drain-source) -->
+          <line x1="178" y1="60" x2="178" y2="100" class="mosfet-body pmos-body" id="nor-pA-ch"/>
+          <!-- Gate bar -->
+          <line x1="168" y1="60" x2="168" y2="100" stroke="var(--pmos-color)" stroke-width="3" stroke-linecap="butt"/>
+          <!-- Gate connection -->
+          <line x1="130" y1="80" x2="168" y2="80" class="wire" id="nor-pA-gate-wire"/>
+          <!-- Body/channel connections (source top, drain bottom) -->
+          <line x1="170" y1="60" x2="178" y2="60" class="mosfet-body pmos-body"/>
+          <line x1="170" y1="100" x2="178" y2="100" class="mosfet-body pmos-body"/>
+          <!-- PMOS bubble on gate -->
+          <circle cx="162" cy="80" r="5" class="pmos-bubble"/>
+          <text x="193" y="83" class="label label-pmos">PMOS_A</text>
+
+          <!-- PMOS B (below A, series) -->
+          <line x1="170" y1="100" x2="170" y2="120" class="wire" id="nor-pA-pB-mid"/>
+          <!-- PMOS B body -->
+          <line x1="178" y1="120" x2="178" y2="160" class="mosfet-body pmos-body" id="nor-pB-ch"/>
+          <line x1="168" y1="120" x2="168" y2="160" stroke="var(--pmos-color)" stroke-width="3" stroke-linecap="butt"/>
+          <line x1="130" y1="140" x2="168" y2="140" class="wire" id="nor-pB-gate-wire"/>
+          <line x1="170" y1="120" x2="178" y2="120" class="mosfet-body pmos-body"/>
+          <line x1="170" y1="160" x2="178" y2="160" class="mosfet-body pmos-body"/>
+          <circle cx="162" cy="140" r="5" class="pmos-bubble"/>
+          <text x="193" y="143" class="label label-pmos">PMOS_B</text>
+
+          <!-- Output node wire from PMOS drain -->
+          <line x1="170" y1="160" x2="170" y2="185" class="wire" id="nor-out-top"/>
+          <!-- Output wire going right -->
+          <line x1="170" y1="185" x2="260" y2="185" class="wire" id="nor-out-horiz"/>
+          <!-- Output label -->
+          <text x="268" y="189" class="label label-out">Y</text>
+
+          <!-- NMOS A (parallel, left branch) -->
+          <line x1="130" y1="185" x2="130" y2="200" class="wire" id="nor-nA-top"/>
+          <!-- NMOS A body -->
+          <line x1="122" y1="200" x2="122" y2="240" class="mosfet-body nmos-body" id="nor-nA-ch"/>
+          <line x1="132" y1="200" x2="132" y2="240" stroke="var(--nmos-color)" stroke-width="3" stroke-linecap="butt"/>
+          <line x1="132" y1="220" x2="155" y2="220" class="wire" id="nor-nA-gate-r"/>
+          <!-- connect gate wire left -->
+          <line x1="80" y1="220" x2="132" y2="220" class="wire" id="nor-nA-gate-l"/>
+          <line x1="130" y1="200" x2="122" y2="200" class="mosfet-body nmos-body"/>
+          <line x1="130" y1="240" x2="122" y2="240" class="mosfet-body nmos-body"/>
+          <text x="60" y="223" class="label label-nmos" text-anchor="end">NMOS_A</text>
+          <!-- connect NMOS A drain to output node -->
+          <line x1="130" y1="185" x2="170" y2="185" class="wire" id="nor-nA-out"/>
+
+          <!-- NMOS B (parallel, right branch) -->
+          <line x1="210" y1="185" x2="210" y2="200" class="wire" id="nor-nB-top"/>
+          <!-- NMOS B body -->
+          <line x1="202" y1="200" x2="202" y2="240" class="mosfet-body nmos-body" id="nor-nB-ch"/>
+          <line x1="212" y1="200" x2="212" y2="240" stroke="var(--nmos-color)" stroke-width="3" stroke-linecap="butt"/>
+          <line x1="212" y1="220" x2="235" y2="220" class="wire" id="nor-nB-gate-r"/>
+          <line x1="155" y1="220" x2="212" y2="220" class="wire" id="nor-nB-gate-l"/>
+          <line x1="210" y1="200" x2="202" y2="200" class="mosfet-body nmos-body"/>
+          <line x1="210" y1="240" x2="202" y2="240" class="mosfet-body nmos-body"/>
+          <text x="250" y="223" class="label label-nmos">NMOS_B</text>
+          <!-- connect NMOS B drain to output -->
+          <line x1="170" y1="185" x2="210" y2="185" class="wire" id="nor-nB-out"/>
+
+          <!-- Merge NMOS sources to GND -->
+          <line x1="130" y1="240" x2="130" y2="270" class="wire" id="nor-nA-gnd"/>
+          <line x1="210" y1="240" x2="210" y2="270" class="wire" id="nor-nB-gnd"/>
+          <line x1="130" y1="270" x2="210" y2="270" class="wire" id="nor-gnd-rail"/>
+          <line x1="170" y1="270" x2="170" y2="300" class="wire" id="nor-gnd-wire"/>
+          <!-- GND symbol -->
+          <line x1="155" y1="300" x2="185" y2="300" stroke="var(--gnd-color)" stroke-width="2.5" stroke-linecap="round"/>
+          <line x1="161" y1="306" x2="179" y2="306" stroke="var(--gnd-color)" stroke-width="2" stroke-linecap="round"/>
+          <line x1="167" y1="312" x2="173" y2="312" stroke="var(--gnd-color)" stroke-width="1.5" stroke-linecap="round"/>
+          <text x="170" y="326" text-anchor="middle" class="label label-gnd">GND</text>
+
+          <!-- Input A wire (connects to PMOS_A gate and NMOS_A gate) -->
+          <line x1="40" y1="80" x2="80" y2="80" class="wire" id="nor-inA-h"/>
+          <line x1="80" y1="80" x2="80" y2="220" class="wire" id="nor-inA-v"/>
+          <!-- junction dot A -->
+          <circle cx="80" cy="80" r="3" fill="var(--wire-idle)" id="nor-jA-top"/>
+          <circle cx="80" cy="220" r="3" fill="var(--wire-idle)" id="nor-jA-bot"/>
+          <line x1="80" y1="80" x2="130" y2="80" class="wire" id="nor-inA-pmos"/>
+          <line x1="80" y1="220" x2="132" y2="220" class="wire" id="nor-inA-nmos"/>
+          <text x="36" y="84" text-anchor="end" class="label label-input">A</text>
+
+          <!-- Input B wire -->
+          <line x1="40" y1="140" x2="100" y2="140" class="wire" id="nor-inB-h"/>
+          <line x1="100" y1="140" x2="100" y2="320" class="wire" id="nor-inB-v"/>
+          <circle cx="100" cy="140" r="3" fill="var(--wire-idle)" id="nor-jB-top"/>
+          <circle cx="100" cy="320" r="3" fill="var(--wire-idle)" id="nor-jB-bot"/>
+          <!-- junction at B NMOS -->
+          <line x1="100" y1="140" x2="130" y2="140" class="wire" id="nor-inB-pmos"/>
+          <line x1="100" y1="320" x2="212" y2="320" class="wire" id="nor-inB-nmos-h"/>
+          <line x1="212" y1="320" x2="212" y2="220" class="wire" id="nor-inB-nmos-v"/>
+          <text x="36" y="144" text-anchor="end" class="label label-input">B</text>
+
+          <!-- Particle layer (drawn on top) -->
+          <g id="nor-particles"></g>
+        </svg>
+      </div>
+    </div>
+
+    <!-- AND GATE -->
+    <div class="gate-panel" id="and-panel">
+      <div class="gate-title">Gate 02</div>
+      <div class="gate-subtitle">Two-Input AND Gate</div>
+      <div class="gate-formula">Y = AB = NAND + INV &nbsp;|&nbsp; 6 transistors total</div>
+      <div class="controls">
+        <div class="input-toggle">
+          <span class="input-label">A</span>
+          <button class="toggle-btn" id="and-a-btn" onclick="toggle('and','a')"></button>
+          <span class="input-value" id="and-a-val">0</span>
+        </div>
+        <div class="input-toggle">
+          <span class="input-label">B</span>
+          <button class="toggle-btn" id="and-b-btn" onclick="toggle('and','b')"></button>
+          <span class="input-value" id="and-b-val">0</span>
+        </div>
+        <div style="margin-left:auto">
+          <div class="output-display">
+            <span style="color:var(--muted);font-size:11px">Y =</span>
+            <span class="output-val" id="and-out-val">0</span>
+            <span style="color:var(--muted);font-size:10px" id="and-out-label">LOW</span>
+          </div>
+        </div>
+      </div>
+      <div class="schematic-wrap">
+        <svg id="and-svg" viewBox="0 0 420 480" xmlns="http://www.w3.org/2000/svg">
+          <!-- ====== NAND STAGE ====== -->
+          <!-- VDD -->
+          <line x1="150" y1="16" x2="150" y2="36" class="wire" id="and-vdd-nand"/>
+          <text x="150" y="13" text-anchor="middle" class="label label-vdd">VDD</text>
+          <line x1="135" y1="20" x2="165" y2="20" stroke="var(--vdd-color)" stroke-width="2.5" stroke-linecap="round"/>
+          <line x1="142" y1="26" x2="158" y2="26" stroke="var(--vdd-color)" stroke-width="2" stroke-linecap="round"/>
+
+          <!-- VDD2 (for inverter) -->
+          <line x1="310" y1="16" x2="310" y2="36" class="wire" id="and-vdd-inv"/>
+          <text x="310" y="13" text-anchor="middle" class="label label-vdd">VDD</text>
+          <line x1="295" y1="20" x2="325" y2="20" stroke="var(--vdd-color)" stroke-width="2.5" stroke-linecap="round"/>
+          <line x1="302" y1="26" x2="318" y2="26" stroke="var(--vdd-color)" stroke-width="2" stroke-linecap="round"/>
+
+          <!-- NAND PMOS_A parallel -->
+          <line x1="150" y1="36" x2="150" y2="50" class="wire" id="and-nand-pA-src"/>
+          <!-- fork left and right for parallel -->
+          <line x1="90" y1="50" x2="210" y2="50" class="wire" id="and-nand-fork-top"/>
+          <line x1="150" y1="50" x2="150" y2="60" class="wire" id="and-nand-mid-top"/>
+
+          <!-- PMOS A (left parallel branch) -->
+          <line x1="90" y1="50" x2="90" y2="62" class="wire" id="and-pA-src"/>
+          <line x1="82" y1="62" x2="82" y2="98" class="mosfet-body pmos-body" id="and-pA-ch"/>
+          <line x1="72" y1="62" x2="72" y2="98" stroke="var(--pmos-color)" stroke-width="3" stroke-linecap="butt"/>
+          <circle cx="66" cy="80" r="5" class="pmos-bubble"/>
+          <line x1="50" y1="80" x2="66" y2="80" class="wire" id="and-pA-gate"/>
+          <line x1="90" y1="62" x2="82" y2="62" class="mosfet-body pmos-body"/>
+          <line x1="90" y1="98" x2="82" y2="98" class="mosfet-body pmos-body"/>
+          <text x="100" y="83" class="label label-pmos">PA</text>
+
+          <!-- PMOS B (right parallel branch) -->
+          <line x1="210" y1="50" x2="210" y2="62" class="wire" id="and-pB-src"/>
+          <line x1="202" y1="62" x2="202" y2="98" class="mosfet-body pmos-body" id="and-pB-ch"/>
+          <line x1="192" y1="62" x2="192" y2="98" stroke="var(--pmos-color)" stroke-width="3" stroke-linecap="butt"/>
+          <circle cx="186" cy="80" r="5" class="pmos-bubble"/>
+          <line x1="170" y1="80" x2="186" y2="80" class="wire" id="and-pB-gate"/>
+          <line x1="210" y1="62" x2="202" y2="62" class="mosfet-body pmos-body"/>
+          <line x1="210" y1="98" x2="202" y2="98" class="mosfet-body pmos-body"/>
+          <text x="218" y="83" class="label label-pmos">PB</text>
+
+          <!-- Merge PMOS drains -->
+          <line x1="90" y1="98" x2="210" y2="98" class="wire" id="and-nand-fork-bot"/>
+          <line x1="150" y1="98" x2="150" y2="115" class="wire" id="and-nand-out-top"/>
+
+          <!-- NAND output / intermediate node -->
+          <line x1="150" y1="115" x2="240" y2="115" class="wire" id="and-nand-out-h"/>
+          <!-- NAND' label -->
+          <text x="155" y="111" class="label" style="fill:var(--muted);font-size:9px">NAND out (Y')</text>
+
+          <!-- NMOS A (series, top) -->
+          <line x1="150" y1="115" x2="150" y2="130" class="wire" id="and-nA-src"/>
+          <line x1="142" y1="130" x2="142" y2="168" class="mosfet-body nmos-body" id="and-nA-ch"/>
+          <line x1="152" y1="130" x2="152" y2="168" stroke="var(--nmos-color)" stroke-width="3" stroke-linecap="butt"/>
+          <line x1="152" y1="149" x2="175" y2="149" class="wire" id="and-nA-gate-r"/>
+          <line x1="50" y1="149" x2="152" y2="149" class="wire" id="and-nA-gate-l"/>
+          <line x1="150" y1="130" x2="142" y2="130" class="mosfet-body nmos-body"/>
+          <line x1="150" y1="168" x2="142" y2="168" class="mosfet-body nmos-body"/>
+          <text x="40" y="152" text-anchor="end" class="label label-nmos">NA</text>
+
+          <!-- NMOS B (series, bottom) -->
+          <line x1="150" y1="168" x2="150" y2="183" class="wire" id="and-nB-mid"/>
+          <line x1="142" y1="183" x2="142" y2="221" class="mosfet-body nmos-body" id="and-nB-ch"/>
+          <line x1="152" y1="183" x2="152" y2="221" stroke="var(--nmos-color)" stroke-width="3" stroke-linecap="butt"/>
+          <line x1="152" y1="202" x2="175" y2="202" class="wire" id="and-nB-gate-r"/>
+          <line x1="50" y1="202" x2="152" y2="202" class="wire" id="and-nB-gate-l"/>
+          <line x1="150" y1="183" x2="142" y2="183" class="mosfet-body nmos-body"/>
+          <line x1="150" y1="221" x2="142" y2="221" class="mosfet-body nmos-body"/>
+          <text x="40" y="205" text-anchor="end" class="label label-nmos">NB</text>
+
+          <!-- NAND GND -->
+          <line x1="150" y1="221" x2="150" y2="255" class="wire" id="and-nand-gnd"/>
+          <line x1="135" y1="255" x2="165" y2="255" stroke="var(--gnd-color)" stroke-width="2.5" stroke-linecap="round"/>
+          <line x1="141" y1="261" x2="159" y2="261" stroke="var(--gnd-color)" stroke-width="2" stroke-linecap="round"/>
+          <line x1="147" y1="267" x2="153" y2="267" stroke="var(--gnd-color)" stroke-width="1.5" stroke-linecap="round"/>
+          <text x="150" y="280" text-anchor="middle" class="label label-gnd">GND</text>
+
+          <!-- divider label -->
+          <line x1="265" y1="30" x2="265" y2="290" stroke="var(--border)" stroke-width="1" stroke-dasharray="4,4"/>
+          <text x="265" y="300" text-anchor="middle" class="label" style="font-size:9px;fill:var(--muted)">NAND | INV</text>
+
+          <!-- ====== INVERTER STAGE ====== -->
+          <!-- INV PMOS -->
+          <line x1="310" y1="36" x2="310" y2="62" class="wire" id="and-inv-p-src"/>
+          <line x1="302" y1="62" x2="302" y2="98" class="mosfet-body pmos-body" id="and-inv-p-ch"/>
+          <line x1="292" y1="62" x2="292" y2="98" stroke="var(--pmos-color)" stroke-width="3" stroke-linecap="butt"/>
+          <circle cx="286" cy="80" r="5" class="pmos-bubble"/>
+          <line x1="240" y1="80" x2="286" y2="80" class="wire" id="and-inv-p-gate"/>
+          <!-- connect NAND output to inv gate -->
+          <line x1="240" y1="80" x2="240" y2="115" class="wire" id="and-inv-gate-v"/>
+          <line x1="310" y1="62" x2="302" y2="62" class="mosfet-body pmos-body"/>
+          <line x1="310" y1="98" x2="302" y2="98" class="mosfet-body pmos-body"/>
+          <text x="320" y="83" class="label label-pmos">PI</text>
+
+          <!-- INV output node -->
+          <line x1="310" y1="98" x2="310" y2="120" class="wire" id="and-inv-out-top"/>
+          <line x1="310" y1="120" x2="380" y2="120" class="wire" id="and-inv-out-h"/>
+          <text x="384" y="124" class="label label-out">Y</text>
+
+          <!-- INV NMOS -->
+          <line x1="310" y1="120" x2="310" y2="130" class="wire" id="and-inv-n-src"/>
+          <line x1="302" y1="130" x2="302" y2="168" class="mosfet-body nmos-body" id="and-inv-n-ch"/>
+          <line x1="312" y1="130" x2="312" y2="168" stroke="var(--nmos-color)" stroke-width="3" stroke-linecap="butt"/>
+          <line x1="312" y1="149" x2="335" y2="149" class="wire" id="and-inv-n-gate-r"/>
+          <line x1="240" y1="149" x2="312" y2="149" class="wire" id="and-inv-n-gate-l"/>
+          <!-- vertical join to NAND output -->
+          <line x1="240" y1="115" x2="240" y2="149" class="wire" id="and-inv-gate-v2"/>
+          <circle cx="240" cy="115" r="3" fill="var(--wire-idle)" id="and-junc-nand"/>
+          <line x1="310" y1="130" x2="302" y2="130" class="mosfet-body nmos-body"/>
+          <line x1="310" y1="168" x2="302" y2="168" class="mosfet-body nmos-body"/>
+          <text x="320" y="152" class="label label-nmos">NI</text>
+
+          <!-- INV GND -->
+          <line x1="310" y1="168" x2="310" y2="202" class="wire" id="and-inv-gnd"/>
+          <line x1="295" y1="202" x2="325" y2="202" stroke="var(--gnd-color)" stroke-width="2.5" stroke-linecap="round"/>
+          <line x1="301" y1="208" x2="319" y2="208" stroke="var(--gnd-color)" stroke-width="2" stroke-linecap="round"/>
+          <line x1="307" y1="214" x2="313" y2="214" stroke="var(--gnd-color)" stroke-width="1.5" stroke-linecap="round"/>
+          <text x="310" y="228" text-anchor="middle" class="label label-gnd">GND</text>
+
+          <!-- Input A wires -->
+          <line x1="16" y1="80" x2="50" y2="80" class="wire" id="and-inA-in"/>
+          <line x1="50" y1="80" x2="50" y2="202" class="wire" id="and-inA-v"/>
+          <circle cx="50" cy="80" r="3" fill="var(--wire-idle)" id="and-jA1"/>
+          <circle cx="50" cy="149" r="3" fill="var(--wire-idle)" id="and-jA2"/>
+          <circle cx="50" cy="202" r="3" fill="var(--wire-idle)" id="and-jA3"/>
+          <line x1="50" y1="80" x2="66" y2="80" class="wire" id="and-inA-pa"/>
+          <line x1="50" y1="149" x2="152" y2="149" class="wire" id="and-inA-na"/>
+          <text x="12" y="84" text-anchor="end" class="label label-input">A</text>
+
+          <!-- Input B wires -->
+          <line x1="16" y1="202" x2="50" y2="202" class="wire" id="and-inB-in"/>
+          <line x1="50" y1="202" x2="170" y2="202" class="wire" id="and-inB-pb-h"/>
+          <!-- vertical from B up to PB gate -->
+          <line x1="170" y1="80" x2="170" y2="202" class="wire" id="and-inB-pb-v"/>
+          <circle cx="170" cy="202" r="3" fill="var(--wire-idle)" id="and-jB1"/>
+          <circle cx="170" cy="80" r="3" fill="var(--wire-idle)" id="and-jB2"/>
+          <line x1="170" y1="80" x2="186" y2="80" class="wire" id="and-inB-pb"/>
+          <line x1="50" y1="202" x2="152" y2="202" class="wire" id="and-inB-nb"/>
+          <text x="12" y="206" text-anchor="end" class="label label-input">B</text>
+
+          <g id="and-particles"></g>
+        </svg>
+      </div>
+    </div>
+  </div>
+
+  <div style="margin-top:20px;text-align:center;font-size:11px;color:var(--muted);letter-spacing:0.05em">
+    Orange particles = VDD / HIGH &nbsp;·&nbsp; Blue particles = GND / LOW &nbsp;·&nbsp; Signal propagates after input change
+  </div>
+</div>
+
+<script>
+// ========================================================
+// STATE
+// ========================================================
+const state = {
+  nor: { a: 0, b: 0 },
+  and: { a: 0, b: 0 }
+};
+
+// ========================================================
+// LOGIC
+// ========================================================
+function norOutput(a, b) { return (a === 0 && b === 0) ? 1 : 0; }
+function andOutput(a, b) { return (a === 1 && b === 1) ? 1 : 0; }
+
+// ========================================================
+// WIRE COLOR MANAGEMENT
+// ========================================================
+const HIGH_COLOR = '#f97316';
+const LOW_COLOR  = '#3b82f6';
+const IDLE_COLOR = '#2d4060';
+
+function colorWire(el, isHigh, dim=false) {
+  if (!el) return;
+  const c = isHigh ? HIGH_COLOR : LOW_COLOR;
+  el.style.stroke = dim ? IDLE_COLOR : c;
+  el.style.strokeWidth = dim ? '2' : '2.5';
+  el.style.filter = dim ? 'none' : (isHigh ? 'drop-shadow(0 0 3px #f97316)' : 'drop-shadow(0 0 3px #3b82f6)');
+}
+
+function colorDot(el, isHigh) {
+  if (!el) return;
+  el.style.fill = isHigh ? HIGH_COLOR : LOW_COLOR;
+}
+
+function resetWire(el) {
+  if (!el) return;
+  el.style.stroke = IDLE_COLOR;
+  el.style.strokeWidth = '2';
+  el.style.filter = 'none';
+}
+
+// ========================================================
+// PARTICLE ANIMATION
+// ========================================================
+function createParticle(svgGroup, x1, y1, x2, y2, isHigh, delay, speed=2200, onDone) {
+  const circle = document.createElementNS('http://www.w3.org/2000/svg','circle');
+  circle.setAttribute('r', '4.5');
+  circle.setAttribute('cx', x1);
+  circle.setAttribute('cy', y1);
+  circle.setAttribute('fill', isHigh ? HIGH_COLOR : LOW_COLOR);
+  circle.setAttribute('opacity','0');
+  // trail: use filter
+  circle.style.filter = isHigh
+    ? 'drop-shadow(0 0 5px #f97316) drop-shadow(0 0 10px #f97316aa)'
+    : 'drop-shadow(0 0 5px #3b82f6) drop-shadow(0 0 10px #3b82f6aa)';
+  svgGroup.appendChild(circle);
+
+  let startTime = null;
+  const totalDist = Math.hypot(x2-x1, y2-y1);
+
+  setTimeout(() => {
+    circle.setAttribute('opacity','1');
+
+    function animate(ts) {
+      if (!startTime) startTime = ts;
+      const t = Math.min((ts - startTime) / speed, 1);
+      // easeInOut
+      const ease = t < 0.5 ? 2*t*t : -1+(4-2*t)*t;
+      const cx = x1 + (x2-x1)*ease;
+      const cy = y1 + (y2-y1)*ease;
+      circle.setAttribute('cx', cx);
+      circle.setAttribute('cy', cy);
+      circle.setAttribute('opacity', t < 0.1 ? t*10 : t > 0.85 ? (1-t)/0.15 : 1);
+      if (t < 1) {
+        requestAnimationFrame(animate);
+      } else {
+        circle.remove();
+        if (onDone) onDone();
+      }
+    }
+    requestAnimationFrame(animate);
+  }, delay);
+}
+
+// Animate along a path defined by array of [x,y] waypoints
+function animatePath(svgGroup, points, isHigh, delay, segSpeed, onDone) {
+  if (!points || points.length < 2) { if(onDone) onDone(); return; }
+
+  function doSegment(i) {
+    if (i >= points.length - 1) { if(onDone) onDone(); return; }
+    const [x1,y1] = points[i];
+    const [x2,y2] = points[i+1];
+    const dist = Math.hypot(x2-x1, y2-y1);
+    const dur = (dist / 100) * segSpeed;
+    createParticle(svgGroup, x1, y1, x2, y2, isHigh, 0, dur, () => doSegment(i+1));
+  }
+
+  setTimeout(() => doSegment(0), delay);
+}
+
+// ========================================================
+// NOR GATE UPDATE
+// ========================================================
+function updateNOR() {
+  const a = state.nor.a;
+  const b = state.nor.b;
+  const out = norOutput(a, b);
+  const svg = document.getElementById('nor-svg');
+  const pg = document.getElementById('nor-particles');
+  pg.innerHTML = '';
+
+  // Update output display
+  const outEl = document.getElementById('nor-out-val');
+  const outLbl = document.getElementById('nor-out-label');
+  outEl.textContent = out;
+  outEl.className = 'output-val ' + (out ? 'high' : 'low');
+  outLbl.textContent = out ? 'HIGH' : 'LOW';
+
+  const g = (id) => svg.getElementById(id);
+
+  // Helper to color a bunch of wires
+  function setWires(ids, high) {
+    ids.forEach(id => colorWire(g(id), high));
+  }
+  function resetWires(ids) {
+    ids.forEach(id => resetWire(g(id)));
+  }
+
+  // Input A coloring
+  const aHigh = a===1;
+  const aWires = ['nor-inA-h','nor-inA-v','nor-inA-pmos','nor-inA-nmos'];
+  setWires(aWires, aHigh);
+  colorDot(g('nor-jA-top'), aHigh);
+  colorDot(g('nor-jA-bot'), aHigh);
+  // Gate wires driven by A
+  colorWire(g('nor-pA-gate-wire'), aHigh);
+  colorWire(g('nor-nA-gate-l'), aHigh);
+  colorWire(g('nor-nA-gate-r'), aHigh);
+
+  // Input B coloring
+  const bHigh = b===1;
+  const bWires = ['nor-inB-h','nor-inB-v','nor-inB-pmos','nor-inB-nmos-h','nor-inB-nmos-v'];
+  setWires(bWires, bHigh);
+  colorDot(g('nor-jB-top'), bHigh);
+  colorDot(g('nor-jB-bot'), bHigh);
+  colorWire(g('nor-pB-gate-wire'), bHigh);
+  colorWire(g('nor-nB-gate-l'), bHigh);
+  colorWire(g('nor-nB-gate-r'), bHigh);
+
+  // NOR logic: output is HIGH only if both A=0,B=0 → PMOS path conducts
+  // VDD / pull-up path (both PMOS conduct when A=0 AND B=0)
+  const pullUpActive = (a===0 && b===0);
+  colorWire(g('nor-vdd-wire'), true);
+  colorWire(g('nor-pA-src'), pullUpActive);
+  colorWire(g('nor-pA-ch'), pullUpActive);
+  colorWire(g('nor-pA-pB-mid'), pullUpActive);
+  colorWire(g('nor-pB-ch'), pullUpActive);
+
+  // Pull-down path: NMOS A conducts if A=1, NMOS B if B=1
+  const pullDownA = (a===1);
+  const pullDownB = (b===1);
+  colorWire(g('nor-nA-top'), pullDownA);
+  colorWire(g('nor-nA-ch'), pullDownA);
+  colorWire(g('nor-nA-out'), pullDownA);
+  colorWire(g('nor-nA-gnd'), pullDownA);
+
+  colorWire(g('nor-nB-top'), pullDownB);
+  colorWire(g('nor-nB-ch'), pullDownB);
+  colorWire(g('nor-nB-out'), pullDownB);
+  colorWire(g('nor-nB-gnd'), pullDownB);
+
+  // GND wires
+  colorWire(g('nor-gnd-rail'), !pullUpActive);
+  colorWire(g('nor-gnd-wire'), true, false);
+
+  // Output wires
+  colorWire(g('nor-out-top'), out===1);
+  colorWire(g('nor-out-horiz'), out===1);
+
+  // === PARTICLES ===
+  const SPEED = 900; // ms per 100px — slow
+
+  if (pullUpActive) {
+    // VDD → PMOS_A → PMOS_B → output
+    animatePath(pg, [[170,20],[170,60]], true, 0, SPEED);
+    animatePath(pg, [[170,60],[170,100]], true, 600, SPEED);
+    animatePath(pg, [[170,100],[170,120],[170,160]], true, 1200, SPEED);
+    animatePath(pg, [[170,160],[170,185],[260,185]], true, 1900, SPEED);
+  }
+
+  if (pullDownA) {
+    // Output node → NMOS_A → GND
+    animatePath(pg, [[170,185],[130,185],[130,240],[130,270]], false, 200, SPEED);
+    animatePath(pg, [[130,270],[170,270],[170,300]], false, 1400, SPEED);
+  }
+
+  if (pullDownB) {
+    animatePath(pg, [[170,185],[210,185],[210,240],[210,270]], false, 200, SPEED);
+    animatePath(pg, [[210,270],[170,270],[170,300]], false, 1400, SPEED);
+  }
+
+  // Input A particles
+  animatePath(pg, [[40,80],[80,80]], aHigh, 0, SPEED*0.7);
+  animatePath(pg, [[80,80],[80,220]], aHigh, 300, SPEED*0.7);
+
+  // Input B particles
+  animatePath(pg, [[40,140],[100,140]], bHigh, 0, SPEED*0.7);
+  animatePath(pg, [[100,140],[100,320],[212,320],[212,220]], bHigh, 300, SPEED*0.7);
+}
+
+// ========================================================
+// AND GATE UPDATE
+// ========================================================
+function updateAND() {
+  const a = state.and.a;
+  const b = state.and.b;
+  const nandOut = (a===1 && b===1) ? 0 : 1;  // NAND internal
+  const out = andOutput(a, b);
+  const svg = document.getElementById('and-svg');
+  const pg = document.getElementById('and-particles');
+  pg.innerHTML = '';
+
+  const outEl = document.getElementById('and-out-val');
+  const outLbl = document.getElementById('and-out-label');
+  outEl.textContent = out;
+  outEl.className = 'output-val ' + (out ? 'high' : 'low');
+  outLbl.textContent = out ? 'HIGH' : 'LOW';
+
+  const g = (id) => svg.getElementById(id);
+
+  function setWires(ids, high) { ids.forEach(id => colorWire(g(id), high)); }
+
+  // Input wires
+  const aHigh = a===1;
+  const bHigh = b===1;
+
+  setWires(['and-inA-in','and-inA-v','and-inA-pa','and-inA-na'], aHigh);
+  colorDot(g('and-jA1'), aHigh);
+  colorDot(g('and-jA2'), aHigh);
+  colorDot(g('and-jA3'), aHigh);
+
+  setWires(['and-inB-in','and-inB-pb-h','and-inB-pb-v','and-inB-pb','and-inB-nb'], bHigh);
+  colorDot(g('and-jB1'), bHigh);
+  colorDot(g('and-jB2'), bHigh);
+
+  // Gate wires
+  colorWire(g('and-pA-gate'), aHigh);
+  colorWire(g('and-nA-gate-l'), aHigh);
+  colorWire(g('and-nA-gate-r'), aHigh);
+  colorWire(g('and-pB-gate'), bHigh);
+  colorWire(g('and-nB-gate-l'), bHigh);
+  colorWire(g('and-nB-gate-r'), bHigh);
+
+  // VDD rails always orange
+  colorWire(g('and-vdd-nand'), true);
+  colorWire(g('and-vdd-inv'), true);
+
+  // NAND pull-up: PMOS A conducts if A=0, PMOS B conducts if B=0
+  const pA_on = a===0;
+  const pB_on = b===0;
+  const nandPullUp = pA_on || pB_on; // at least one PMOS conducts
+
+  colorWire(g('and-nand-pA-src'), nandPullUp);
+  colorWire(g('and-nand-fork-top'), nandPullUp);
+  colorWire(g('and-nand-mid-top'), nandPullUp);
+
+  colorWire(g('and-pA-src'), pA_on);
+  colorWire(g('and-pA-ch'), pA_on);
+
+  colorWire(g('and-pB-src'), pB_on);
+  colorWire(g('and-pB-ch'), pB_on);
+
+  colorWire(g('and-nand-fork-bot'), nandPullUp);
+  colorWire(g('and-nand-out-top'), nandPullUp ? true : false);
+
+  // NAND pull-down: both NMOS series → conducts only if A=B=1
+  const nandPullDown = (a===1 && b===1);
+
+  colorWire(g('and-nA-src'), nandPullDown);
+  colorWire(g('and-nA-ch'), nandPullDown);
+  colorWire(g('and-nB-mid'), nandPullDown);
+  colorWire(g('and-nB-ch'), nandPullDown);
+  colorWire(g('and-nand-gnd'), nandPullDown);
+
+  // NAND output node (internal)
+  const nandNodeHigh = nandOut === 1;
+  colorWire(g('and-nand-out-h'), nandNodeHigh);
+  colorWire(g('and-inv-gate-v'), nandNodeHigh);
+  colorWire(g('and-inv-gate-v2'), nandNodeHigh);
+  colorWire(g('and-inv-p-gate'), nandNodeHigh);
+  colorWire(g('and-inv-n-gate-l'), nandNodeHigh);
+  colorWire(g('and-inv-n-gate-r'), nandNodeHigh);
+  colorDot(g('and-junc-nand'), nandNodeHigh);
+
+  // INV: PMOS conducts when NAND out = 0 (i.e., A=B=1)
+  const invP_on = !nandNodeHigh; // NAND out LOW → inv PMOS on
+  const invN_on = nandNodeHigh;  // NAND out HIGH → inv NMOS on
+
+  colorWire(g('and-inv-p-src'), invP_on);
+  colorWire(g('and-inv-p-ch'), invP_on);
+  colorWire(g('and-inv-out-top'), out===1);
+  colorWire(g('and-inv-out-h'), out===1);
+  colorWire(g('and-inv-n-src'), invN_on);
+  colorWire(g('and-inv-n-ch'), invN_on);
+  colorWire(g('and-inv-gnd'), invN_on);
+
+  // === PARTICLES ===
+  const SPEED = 900;
+
+  // Input A particles
+  animatePath(pg, [[16,80],[50,80]], aHigh, 0, SPEED*0.7);
+  animatePath(pg, [[50,80],[50,149]], aHigh, 300, SPEED*0.7);
+
+  // Input B particles
+  animatePath(pg, [[16,202],[50,202],[170,202]], bHigh, 0, SPEED*0.7);
+  animatePath(pg, [[170,202],[170,80]], bHigh, 400, SPEED*0.8);
+
+  // NAND VDD path
+  if (nandPullUp) {
+    animatePath(pg, [[150,20],[150,50]], true, 0, SPEED);
+    if (pA_on) animatePath(pg, [[90,50],[90,98]], true, 500, SPEED);
+    if (pB_on) animatePath(pg, [[210,50],[210,98]], true, 500, SPEED);
+    animatePath(pg, [[90,98],[210,98],[150,98],[150,115]], true, 1200, SPEED);
+  }
+
+  // NAND GND path
+  if (nandPullDown) {
+    animatePath(pg, [[150,115],[150,130],[150,168],[150,183],[150,221],[150,255]], false, 300, SPEED);
+  }
+
+  // NAND out → INV gate
+  const nandDelay = 2400;
+  animatePath(pg, [[150,115],[240,115],[240,80],[286,80]], nandNodeHigh, nandDelay, SPEED);
+  animatePath(pg, [[240,115],[240,149],[312,149]], nandNodeHigh, nandDelay+300, SPEED);
+
+  // INV VDD or GND path
+  const invDelay = nandDelay + 1800;
+  if (invP_on) {
+    animatePath(pg, [[310,20],[310,62],[310,98],[310,120],[380,120]], true, invDelay, SPEED);
+  }
+  if (invN_on) {
+    animatePath(pg, [[310,120],[310,130],[310,168],[310,202]], false, invDelay, SPEED);
+  }
+}
+
+// ========================================================
+// TOGGLE
+// ========================================================
+function toggle(gate, input) {
+  state[gate][input] ^= 1;
+  const val = state[gate][input];
+  const btn = document.getElementById(`${gate}-${input}-btn`);
+  const valEl = document.getElementById(`${gate}-${input}-val`);
+
+  btn.classList.toggle('active', val===1);
+  valEl.textContent = val;
+  valEl.className = 'input-value' + (val===1 ? ' high' : '');
+
+  if (gate === 'nor') updateNOR();
+  else updateAND();
+}
+
+// ========================================================
+// INIT
+// ========================================================
+updateNOR();
+updateAND();
+</script>
+</body>
+</html>
