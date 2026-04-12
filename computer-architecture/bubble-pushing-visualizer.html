@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bubble Pushing Animation</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+  :root {
+    --bg: #fbf7ef;
+    --paper: rgba(255, 255, 255, 0.78);
+    --paper-strong: #fffdf8;
+    --border: #d8c7ac;
+    --border-strong: #bea98a;
+    --text: #2f2418;
+    --muted: #7c6851;
+    --accent: #0f766e;
+    --accent-soft: rgba(15, 118, 110, 0.12);
+    --gold: #b7791f;
+    --gold-soft: rgba(183, 121, 31, 0.14);
+    --rose: #c05621;
+    --rose-soft: rgba(192, 86, 33, 0.14);
+    --signal: #126e5a;
+    --signal-soft: rgba(18, 110, 90, 0.16);
+    --wire: #d7c6ae;
+    --ink-soft: rgba(47, 36, 24, 0.10);
+    --shadow: 0 22px 50px rgba(104, 77, 42, 0.12);
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  body {
+    min-height: 100vh;
+    color: var(--text);
+    font-family: 'IBM Plex Mono', monospace;
+    background:
+      radial-gradient(circle at top left, rgba(15, 118, 110, 0.10), transparent 28%),
+      radial-gradient(circle at top right, rgba(183, 121, 31, 0.10), transparent 30%),
+      linear-gradient(180deg, #fcfaf5 0%, #f6eddc 100%);
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(104, 77, 42, 0.045) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(104, 77, 42, 0.045) 1px, transparent 1px);
+    background-size: 38px 38px;
+    pointer-events: none;
+    z-index: 0;
+    mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.8), transparent);
+  }
+
+  .page {
+    position: relative;
+    z-index: 1;
+    max-width: 1240px;
+    margin: 0 auto;
+    padding: 28px 20px 42px;
+  }
+
+  .hero,
+  .panel,
+  .animation-card {
+    background: var(--paper);
+    border: 1px solid rgba(190, 169, 138, 0.72);
+    box-shadow: var(--shadow);
+    backdrop-filter: blur(12px);
+  }
+
+  .hero {
+    position: relative;
+    padding: 30px;
+    border-radius: 30px;
+    overflow: hidden;
+    background: linear-gradient(135deg, rgba(255, 253, 248, 0.94), rgba(250, 243, 230, 0.88));
+  }
+
+  .hero::after {
+    content: '';
+    position: absolute;
+    right: -50px;
+    top: -60px;
+    width: 220px;
+    height: 220px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(15, 118, 110, 0.18), transparent 68%);
+    pointer-events: none;
+  }
+
+  .eyebrow {
+    font-size: 12px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 10px;
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: 'Fraunces', serif;
+    letter-spacing: -0.03em;
+    font-weight: 600;
+  }
+
+  h1 {
+    font-size: clamp(2.2rem, 5vw, 4.3rem);
+    line-height: 0.95;
+    max-width: 10ch;
+  }
+
+  .hero-copy {
+    margin-top: 14px;
+    max-width: 64ch;
+    color: var(--muted);
+    font-size: 15px;
+    line-height: 1.75;
+  }
+
+  .hero-strip {
+    margin-top: 26px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    gap: 12px;
+    align-items: center;
+  }
+
+  .hero-card {
+    background: rgba(255, 255, 255, 0.72);
+    border: 1px solid rgba(190, 169, 138, 0.70);
+    border-radius: 20px;
+    padding: 18px 20px;
+  }
+
+  .hero-card.rule {
+    box-shadow: inset 0 0 0 1px rgba(15, 118, 110, 0.15);
+  }
+
+  .hero-card.example {
+    box-shadow: inset 0 0 0 1px rgba(183, 121, 31, 0.18);
+  }
+
+  .hero-label,
+  .chip,
+  .card-label,
+  .stage-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: var(--muted);
+  }
+
+  .hero-equation {
+    margin-top: 10px;
+    font-size: clamp(1.05rem, 2.2vw, 1.65rem);
+    line-height: 1.45;
+  }
+
+  .arrow {
+    font-size: 30px;
+    color: var(--accent);
+    padding: 0 4px;
+  }
+
+  .panel {
+    margin-top: 20px;
+    border-radius: 26px;
+    padding: 24px;
+  }
+
+  .panel-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    align-items: flex-end;
+    margin-bottom: 18px;
+  }
+
+  .panel-head h2 {
+    font-size: 1.6rem;
+  }
+
+  .panel-head p {
+    max-width: 38ch;
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.6;
+  }
+
+  .toolbar {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-bottom: 18px;
+  }
+
+  .pill,
+  .action-btn {
+    border-radius: 999px;
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    background: rgba(255, 252, 245, 0.86);
+    font: inherit;
+  }
+
+  .pill {
+    color: var(--muted);
+  }
+
+  .action-btn {
+    cursor: pointer;
+    color: var(--text);
+    transition: transform 180ms ease, border-color 180ms ease, background 180ms ease, color 180ms ease;
+  }
+
+  .action-btn:hover {
+    transform: translateY(-1px);
+    border-color: var(--border-strong);
+  }
+
+  .action-btn.primary {
+    background: rgba(15, 118, 110, 0.10);
+    border-color: rgba(15, 118, 110, 0.35);
+    color: var(--accent);
+  }
+
+  .action-btn.primary.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #f8fbf8;
+  }
+
+  .animation-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px;
+  }
+
+  .animation-card {
+    border-radius: 24px;
+    padding: 20px;
+    background: linear-gradient(180deg, rgba(255, 252, 245, 0.98), rgba(246, 239, 225, 0.95));
+  }
+
+  .card-top {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: flex-start;
+  }
+
+  .card-top h3 {
+    font-size: 1.45rem;
+  }
+
+  .card-copy {
+    margin-top: 6px;
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.7;
+  }
+
+  .formula-box {
+    margin-top: 14px;
+    border-radius: 18px;
+    border: 1px solid var(--ink-soft);
+    background: rgba(255, 255, 255, 0.72);
+    padding: 12px 14px;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
+  .diagram-shell {
+    margin-top: 16px;
+    border-radius: 18px;
+    border: 1px solid var(--ink-soft);
+    background:
+      radial-gradient(circle at top left, rgba(15, 118, 110, 0.07), transparent 36%),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(248, 242, 231, 0.88));
+    padding: 14px;
+  }
+
+  svg {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+
+  .wire {
+    fill: none;
+    stroke: var(--wire);
+    stroke-width: 7;
+    stroke-linecap: round;
+  }
+
+  .wire.hot {
+    stroke: var(--signal);
+  }
+
+  .wire.sweep {
+    stroke: rgba(183, 121, 31, 0.9);
+  }
+
+  .gate-path {
+    fill: rgba(255, 255, 255, 0.74);
+    stroke: rgba(47, 36, 24, 0.18);
+    stroke-width: 3;
+    stroke-linejoin: round;
+  }
+
+  .gate-label-text {
+    fill: var(--text);
+    font-family: 'Fraunces', serif;
+    font-size: 20px;
+    letter-spacing: 0.06em;
+  }
+
+  .port,
+  .phase-text {
+    fill: var(--muted);
+    font-size: 12px;
+  }
+
+  .bubble {
+    fill: var(--paper-strong);
+    stroke: rgba(47, 36, 24, 0.25);
+    stroke-width: 3;
+  }
+
+  .bubble.glow {
+    fill: rgba(15, 118, 110, 0.08);
+    stroke: rgba(15, 118, 110, 0.18);
+  }
+
+  .progress-track {
+    margin-top: 14px;
+    height: 10px;
+    border-radius: 999px;
+    background: rgba(215, 198, 174, 0.45);
+    overflow: hidden;
+    border: 1px solid rgba(190, 169, 138, 0.55);
+  }
+
+  .progress-fill {
+    height: 100%;
+    width: 100%;
+    transform-origin: left center;
+    transform: scaleX(0);
+    background: linear-gradient(90deg, var(--accent), var(--gold));
+  }
+
+  .stage-row {
+    margin-top: 14px;
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: center;
+  }
+
+  .stage-note {
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.7;
+    min-height: 46px;
+  }
+
+  .footer-note {
+    margin-top: 18px;
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.8;
+  }
+
+  @media (max-width: 900px) {
+    .animation-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 760px) {
+    .page {
+      padding: 18px 14px 32px;
+    }
+
+    .hero,
+    .panel,
+    .animation-card {
+      padding: 20px;
+      border-radius: 22px;
+    }
+
+    .hero-strip {
+      grid-template-columns: 1fr;
+    }
+
+    .arrow {
+      display: none;
+    }
+
+    .panel-head {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+  }
+</style>
+</head>
+<body>
+  <div class="page">
+    <header class="hero">
+      <div class="eyebrow">Bubble Pushing Animation</div>
+      <h1>Just the motion.</h1>
+      <p class="hero-copy">
+        This page only shows the bubble-pushing animation. The bubbles move from left to right,
+        the gate family flips in the middle, and the output bubble settles on the right.
+      </p>
+
+      <div class="hero-strip">
+        <div class="hero-card rule">
+          <div class="hero-label">Visual Rule</div>
+          <div class="hero-equation">push bubbles through the gate, flip AND/OR, keep the outside behavior</div>
+        </div>
+        <div class="arrow">&rarr;</div>
+        <div class="hero-card example">
+          <div class="hero-label">Looping Examples</div>
+          <div class="hero-equation">AND with input bubbles &rarr; OR with output bubble<br>OR with input bubbles &rarr; AND with output bubble</div>
+        </div>
+      </div>
+    </header>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>Left-To-Right Push</h2>
+        </div>
+        <p>Replay it or pause it. Both examples loop together and switch gate type mid-flight.</p>
+      </div>
+
+      <div class="toolbar">
+        <div class="pill">Direction: left to right</div>
+        <div class="pill">Loop: continuous</div>
+        <button id="play-btn" class="action-btn primary active" type="button">Pause</button>
+        <button id="replay-btn" class="action-btn" type="button">Replay</button>
+      </div>
+
+      <div class="animation-grid">
+        <article class="animation-card">
+          <div class="card-top">
+            <div>
+              <div class="card-label">Example One</div>
+              <h3>AND &rarr; OR</h3>
+              <p class="card-copy">Start with bubbles on both inputs of an AND gate. Push them right and the symbol becomes an OR gate with an output bubble.</p>
+            </div>
+            <div class="pill">A'B' = (A + B)'</div>
+          </div>
+
+          <div class="formula-box">AND with input bubbles &rarr; OR with output bubble</div>
+
+          <div class="diagram-shell">
+            <svg id="scene-and-or" viewBox="0 0 360 210" aria-label="Animated bubble push from AND to OR"></svg>
+          </div>
+
+          <div class="stage-row">
+            <div class="stage-label">Current Phase</div>
+            <div class="chip" id="phase-chip-and-or">approaching gate</div>
+          </div>
+          <p class="stage-note" id="phase-note-and-or"></p>
+
+          <div class="progress-track">
+            <div class="progress-fill" id="progress-and-or"></div>
+          </div>
+        </article>
+
+        <article class="animation-card">
+          <div class="card-top">
+            <div>
+              <div class="card-label">Example Two</div>
+              <h3>OR &rarr; AND</h3>
+              <p class="card-copy">Start with bubbles on both inputs of an OR gate. Push them right and the symbol becomes an AND gate with an output bubble.</p>
+            </div>
+            <div class="pill">A' + B' = (AB)'</div>
+          </div>
+
+          <div class="formula-box">OR with input bubbles &rarr; AND with output bubble</div>
+
+          <div class="diagram-shell">
+            <svg id="scene-or-and" viewBox="0 0 360 210" aria-label="Animated bubble push from OR to AND"></svg>
+          </div>
+
+          <div class="stage-row">
+            <div class="stage-label">Current Phase</div>
+            <div class="chip" id="phase-chip-or-and">approaching gate</div>
+          </div>
+          <p class="stage-note" id="phase-note-or-and"></p>
+
+          <div class="progress-track">
+            <div class="progress-fill" id="progress-or-and"></div>
+          </div>
+        </article>
+      </div>
+
+      <p class="footer-note">
+        The animation deliberately strips out truth tables and controls for input values. It is only showing the visual transform: bubbles move right, the gate flips, and a single output bubble remains.
+      </p>
+    </section>
+  </div>
+
+<script>
+  const scenes = [
+    {
+      id: 'scene-and-or',
+      progressId: 'progress-and-or',
+      chipId: 'phase-chip-and-or',
+      noteId: 'phase-note-and-or',
+      startGate: 'and',
+      endGate: 'or',
+      notes: {
+        early: 'The two input bubbles slide rightward toward the gate boundary.',
+        middle: 'The bubble push crosses the gate, so the family flips from AND to OR.',
+        late: 'The two input bubbles collapse into one output bubble on the right.'
+      }
+    },
+    {
+      id: 'scene-or-and',
+      progressId: 'progress-or-and',
+      chipId: 'phase-chip-or-and',
+      noteId: 'phase-note-or-and',
+      startGate: 'or',
+      endGate: 'and',
+      notes: {
+        early: 'The two input bubbles slide rightward toward the gate boundary.',
+        middle: 'The bubble push crosses the gate, so the family flips from OR to AND.',
+        late: 'The two input bubbles collapse into one output bubble on the right.'
+      }
+    }
+  ];
+
+  let progress = 0;
+  let playing = true;
+  let lastTimestamp = 0;
+  const loopDurationMs = 3200;
+
+  function clamp(value, min = 0, max = 1) {
+    return Math.min(max, Math.max(min, value));
+  }
+
+  function mix(start, end, amount) {
+    return start + (end - start) * amount;
+  }
+
+  function smoothstep(edge0, edge1, x) {
+    const t = clamp((x - edge0) / (edge1 - edge0));
+    return t * t * (3 - 2 * t);
+  }
+
+  function gateLabel(type) {
+    return type === 'and' ? 'AND' : 'OR';
+  }
+
+  function gateFrame(type) {
+    if (type === 'and') {
+      return {
+        xTop: 118,
+        xBottom: 118,
+        leftCtrlX: 118,
+        rightLowerCtrlX: 216,
+        rightUpperCtrlX: 216,
+        xRight: 216,
+        labelX: 166
+      };
+    }
+
+    return {
+      xTop: 108,
+      xBottom: 108,
+      leftCtrlX: 140,
+      rightLowerCtrlX: 186,
+      rightUpperCtrlX: 186,
+      xRight: 234,
+      labelX: 172
+    };
+  }
+
+  function interpolateGateFrame(fromType, toType, amount) {
+    const from = gateFrame(fromType);
+    const to = gateFrame(toType);
+
+    return {
+      xTop: mix(from.xTop, to.xTop, amount),
+      xBottom: mix(from.xBottom, to.xBottom, amount),
+      leftCtrlX: mix(from.leftCtrlX, to.leftCtrlX, amount),
+      rightLowerCtrlX: mix(from.rightLowerCtrlX, to.rightLowerCtrlX, amount),
+      rightUpperCtrlX: mix(from.rightUpperCtrlX, to.rightUpperCtrlX, amount),
+      xRight: mix(from.xRight, to.xRight, amount),
+      labelX: mix(from.labelX, to.labelX, amount)
+    };
+  }
+
+  function gatePathFromFrame(frame) {
+    return [
+      `M${frame.xTop} 44`,
+      `Q${frame.leftCtrlX} 105 ${frame.xBottom} 166`,
+      `Q${frame.rightLowerCtrlX} 166 ${frame.xRight} 105`,
+      `Q${frame.rightUpperCtrlX} 44 ${frame.xTop} 44`,
+      'Z'
+    ].join(' ');
+  }
+
+  function phaseData(value) {
+    if (value < 0.33) {
+      return { chip: 'approaching gate', key: 'early' };
+    }
+    if (value < 0.67) {
+      return { chip: 'crossing and flipping', key: 'middle' };
+    }
+    return { chip: 'settling on output', key: 'late' };
+  }
+
+  function sceneMarkup(scene, value) {
+    const gateBlend = smoothstep(0.32, 0.68, value);
+    const inputTravel = smoothstep(0.00, 0.48, value);
+    const outputTravel = smoothstep(0.54, 1.00, value);
+    const inputOpacity = 1 - smoothstep(0.42, 0.60, value);
+    const outputOpacity = smoothstep(0.46, 0.64, value);
+    const sweepOpacity = smoothstep(0.18, 0.48, value) * (1 - smoothstep(0.70, 0.96, value));
+    const frame = interpolateGateFrame(scene.startGate, scene.endGate, gateBlend);
+    const inputAttachX = mix(86, 118, gateBlend * 0.35);
+    const outputWireStartX = mix(frame.xRight, frame.xRight + 20, outputTravel);
+
+    const inputBubbleX = mix(76, inputAttachX, inputTravel);
+    const outputBubbleX = mix(frame.xRight + 12, 286, outputTravel);
+    const sweepStart = mix(44, 162, smoothstep(0.00, 0.54, value));
+    const sweepEnd = mix(64, 304, smoothstep(0.22, 0.92, value));
+    const currentLabel = gateBlend < 0.5 ? gateLabel(scene.startGate) : gateLabel(scene.endGate);
+
+    return `
+      <line class="wire" x1="26" y1="66" x2="${inputAttachX}" y2="66"></line>
+      <line class="wire" x1="26" y1="144" x2="${inputAttachX}" y2="144"></line>
+      <line class="wire" x1="${outputWireStartX}" y1="105" x2="332" y2="105"></line>
+      <line class="wire sweep" x1="${sweepStart}" y1="105" x2="${sweepEnd}" y2="105" style="opacity:${sweepOpacity};"></line>
+
+      <path class="gate-path" d="${gatePathFromFrame(frame)}"></path>
+
+      <text class="gate-label-text" x="${frame.labelX}" y="112" text-anchor="middle">${currentLabel}</text>
+
+      <text class="port" x="10" y="70">A</text>
+      <text class="port" x="10" y="148">B</text>
+      <text class="port" x="322" y="126">F</text>
+
+      <circle class="bubble glow" cx="${inputBubbleX}" cy="66" r="14" style="opacity:${inputOpacity * 0.55};"></circle>
+      <circle class="bubble glow" cx="${inputBubbleX}" cy="144" r="14" style="opacity:${inputOpacity * 0.55};"></circle>
+      <circle class="bubble" cx="${inputBubbleX}" cy="66" r="10" style="opacity:${inputOpacity};"></circle>
+      <circle class="bubble" cx="${inputBubbleX}" cy="144" r="10" style="opacity:${inputOpacity};"></circle>
+
+      <circle class="bubble glow" cx="${outputBubbleX}" cy="105" r="14" style="opacity:${outputOpacity * 0.55};"></circle>
+      <circle class="bubble" cx="${outputBubbleX}" cy="105" r="10" style="opacity:${outputOpacity};"></circle>
+
+      <text class="phase-text" x="180" y="192" text-anchor="middle">left-to-right bubble push</text>
+    `;
+  }
+
+  function render() {
+    scenes.forEach((scene) => {
+      document.getElementById(scene.id).innerHTML = sceneMarkup(scene, progress);
+      document.getElementById(scene.progressId).style.transform = `scaleX(${progress})`;
+
+      const phase = phaseData(progress);
+      document.getElementById(scene.chipId).textContent = phase.chip;
+      document.getElementById(scene.noteId).textContent = scene.notes[phase.key];
+    });
+  }
+
+  function animate(timestamp) {
+    if (!lastTimestamp) {
+      lastTimestamp = timestamp;
+    }
+
+    const delta = timestamp - lastTimestamp;
+    lastTimestamp = timestamp;
+
+    if (playing) {
+      progress = (progress + delta / loopDurationMs) % 1;
+      render();
+    }
+
+    window.requestAnimationFrame(animate);
+  }
+
+  document.getElementById('play-btn').addEventListener('click', () => {
+    playing = !playing;
+    const playButton = document.getElementById('play-btn');
+    playButton.textContent = playing ? 'Pause' : 'Resume';
+    playButton.classList.toggle('active', playing);
+    if (playing) {
+      lastTimestamp = 0;
+    }
+  });
+
+  document.getElementById('replay-btn').addEventListener('click', () => {
+    progress = 0;
+    lastTimestamp = 0;
+    render();
+  });
+
+  render();
+  window.requestAnimationFrame(animate);
+</script>
+</body>
+</html>
