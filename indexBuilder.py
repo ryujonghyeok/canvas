@@ -42,7 +42,7 @@ for item in sorted(os.listdir('.')):
         for file in sorted(os.listdir(item)):
             if file.endswith('.html'):
                 file_path = f"./{item}/{file}"
-                clean_name = file.replace('.html', '').replace('-', ' ').title()
+                clean_name = file.replace('.html', '').replace('-', ' ')
                 content += f'            <li><a href="{file_path}">{clean_name}</a></li>\n'
                 
         content += '        </ul>\n    </div>\n'

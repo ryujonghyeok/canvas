@@ -1,0 +1,1301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Consensus Theorem Visualizer</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+  :root {
+    --bg: #fbf7ef;
+    --bg-soft: #f4ecde;
+    --paper: rgba(255, 255, 255, 0.78);
+    --paper-strong: #fffdf8;
+    --border: #d8c7ac;
+    --border-strong: #bea98a;
+    --text: #2f2418;
+    --muted: #7c6851;
+    --accent: #0f766e;
+    --accent-soft: rgba(15, 118, 110, 0.12);
+    --gold: #b7791f;
+    --gold-soft: rgba(183, 121, 31, 0.14);
+    --rose: #c05621;
+    --rose-soft: rgba(192, 86, 33, 0.14);
+    --signal-on: #126e5a;
+    --signal-off: #d7c6ae;
+    --shadow: 0 22px 50px rgba(104, 77, 42, 0.12);
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  body {
+    min-height: 100vh;
+    color: var(--text);
+    font-family: 'IBM Plex Mono', monospace;
+    background:
+      radial-gradient(circle at top left, rgba(15, 118, 110, 0.10), transparent 28%),
+      radial-gradient(circle at top right, rgba(183, 121, 31, 0.10), transparent 30%),
+      linear-gradient(180deg, #fcfaf5 0%, #f6eddc 100%);
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(104, 77, 42, 0.045) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(104, 77, 42, 0.045) 1px, transparent 1px);
+    background-size: 38px 38px;
+    pointer-events: none;
+    z-index: 0;
+    mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.8), transparent);
+  }
+
+  .page {
+    position: relative;
+    z-index: 1;
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 28px 20px 42px;
+  }
+
+  .hero {
+    background: linear-gradient(135deg, rgba(255, 253, 248, 0.94), rgba(250, 243, 230, 0.88));
+    border: 1px solid rgba(190, 169, 138, 0.75);
+    border-radius: 30px;
+    box-shadow: var(--shadow);
+    padding: 30px;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .hero::after {
+    content: '';
+    position: absolute;
+    right: -50px;
+    top: -60px;
+    width: 220px;
+    height: 220px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(15, 118, 110, 0.18), transparent 68%);
+    pointer-events: none;
+  }
+
+  .eyebrow {
+    font-size: 12px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 10px;
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: 'Fraunces', serif;
+    letter-spacing: -0.03em;
+    font-weight: 600;
+  }
+
+  h1 {
+    font-size: clamp(2.2rem, 5vw, 4.3rem);
+    line-height: 0.95;
+    max-width: 11ch;
+  }
+
+  .hero-copy {
+    margin-top: 14px;
+    max-width: 70ch;
+    color: var(--muted);
+    font-size: 15px;
+    line-height: 1.75;
+  }
+
+  .equation-strip {
+    margin-top: 26px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    gap: 12px;
+    align-items: center;
+  }
+
+  .equation-card {
+    background: var(--paper);
+    border: 1px solid rgba(190, 169, 138, 0.7);
+    border-radius: 20px;
+    padding: 18px 20px;
+    backdrop-filter: blur(12px);
+  }
+
+  .equation-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+
+  .equation {
+    font-size: clamp(1.1rem, 2.4vw, 1.8rem);
+    color: var(--text);
+    line-height: 1.35;
+  }
+
+  .equation-card.consensus {
+    box-shadow: inset 0 0 0 1px rgba(15, 118, 110, 0.15);
+  }
+
+  .equation-card.simplified {
+    box-shadow: inset 0 0 0 1px rgba(183, 121, 31, 0.2);
+  }
+
+  .arrow {
+    font-size: 30px;
+    color: var(--accent);
+    padding: 0 4px;
+  }
+
+  .workspace,
+  .analysis-grid {
+    display: grid;
+    gap: 20px;
+    margin-top: 20px;
+  }
+
+  .workspace {
+    grid-template-columns: 420px minmax(0, 1fr);
+  }
+
+  .analysis-grid {
+    grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.8fr);
+  }
+
+  .panel {
+    background: var(--paper);
+    border: 1px solid rgba(190, 169, 138, 0.72);
+    border-radius: 26px;
+    padding: 24px;
+    box-shadow: var(--shadow);
+    backdrop-filter: blur(12px);
+  }
+
+  .panel-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    align-items: flex-end;
+    margin-bottom: 18px;
+  }
+
+  .panel-head h2 {
+    font-size: 1.6rem;
+  }
+
+  .panel-head p {
+    max-width: 34ch;
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.6;
+  }
+
+  .toggle-row {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .input-toggle {
+    border: 1px solid var(--border);
+    background: rgba(255, 252, 245, 0.85);
+    border-radius: 20px;
+    padding: 16px 14px;
+    cursor: pointer;
+    transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease, background 180ms ease;
+    min-height: 92px;
+    text-align: left;
+  }
+
+  .input-toggle:hover {
+    transform: translateY(-2px);
+    border-color: var(--border-strong);
+  }
+
+  .input-toggle.active {
+    background: linear-gradient(180deg, rgba(15, 118, 110, 0.11), rgba(15, 118, 110, 0.05));
+    border-color: rgba(15, 118, 110, 0.55);
+    box-shadow: inset 0 0 0 1px rgba(15, 118, 110, 0.18);
+  }
+
+  .toggle-name {
+    font-size: 13px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+  }
+
+  .toggle-value {
+    font-size: 2rem;
+    color: var(--text);
+    margin-top: 10px;
+    font-family: 'Fraunces', serif;
+  }
+
+  .transport {
+    display: flex;
+    gap: 10px;
+    margin-top: 16px;
+    flex-wrap: wrap;
+  }
+
+  .action-btn,
+  .term-chip,
+  .jump-btn {
+    border: 1px solid var(--border);
+    background: rgba(255, 252, 245, 0.85);
+    color: var(--text);
+    border-radius: 999px;
+    padding: 10px 14px;
+    font: inherit;
+    cursor: pointer;
+    transition: transform 180ms ease, border-color 180ms ease, background 180ms ease, color 180ms ease;
+  }
+
+  .action-btn:hover,
+  .term-chip:hover,
+  .jump-btn:hover {
+    transform: translateY(-1px);
+    border-color: var(--border-strong);
+  }
+
+  .action-btn.primary,
+  .jump-btn {
+    background: rgba(15, 118, 110, 0.1);
+    border-color: rgba(15, 118, 110, 0.35);
+    color: var(--accent);
+  }
+
+  .action-btn.primary.active {
+    background: var(--accent);
+    color: #f9fbf9;
+    border-color: var(--accent);
+  }
+
+  .state-ribbon {
+    margin-top: 18px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .ribbon-card {
+    flex: 1 1 180px;
+    background: rgba(255, 252, 245, 0.92);
+    border: 1px solid rgba(190, 169, 138, 0.75);
+    border-radius: 18px;
+    padding: 14px 16px;
+  }
+
+  .ribbon-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+
+  .ribbon-value {
+    font-family: 'Fraunces', serif;
+    font-size: 1.5rem;
+  }
+
+  .term-grid {
+    margin-top: 18px;
+    display: grid;
+    gap: 12px;
+  }
+
+  .term-card {
+    border-radius: 22px;
+    border: 1px solid var(--border);
+    padding: 18px;
+    background: rgba(255, 252, 245, 0.92);
+    transition: border-color 180ms ease, transform 180ms ease, box-shadow 180ms ease, background 180ms ease;
+    cursor: pointer;
+  }
+
+  .term-card:hover {
+    transform: translateY(-2px);
+    border-color: var(--border-strong);
+  }
+
+  .term-card.is-focused {
+    box-shadow: inset 0 0 0 2px rgba(47, 36, 24, 0.08);
+  }
+
+  .term-card.is-active {
+    background: rgba(255, 255, 255, 0.98);
+  }
+
+  .term-card.bc.is-focused,
+  .term-chip.bc.is-active {
+    border-color: rgba(15, 118, 110, 0.5);
+    background: rgba(15, 118, 110, 0.10);
+  }
+
+  .term-card.bd.is-focused,
+  .term-chip.bd.is-active {
+    border-color: rgba(183, 121, 31, 0.56);
+    background: rgba(183, 121, 31, 0.12);
+  }
+
+  .term-card.cd.is-focused,
+  .term-chip.cd.is-active {
+    border-color: rgba(192, 86, 33, 0.5);
+    background: rgba(192, 86, 33, 0.10);
+  }
+
+  .term-top {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+
+  .term-name {
+    font-size: 1.2rem;
+  }
+
+  .term-role {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    color: var(--muted);
+  }
+
+  .term-badge {
+    min-width: 42px;
+    height: 42px;
+    display: grid;
+    place-items: center;
+    border-radius: 14px;
+    border: 1px solid var(--border);
+    font-family: 'Fraunces', serif;
+    font-size: 1.2rem;
+    background: #fffdf8;
+  }
+
+  .term-card.is-active .term-badge {
+    border-color: rgba(15, 118, 110, 0.25);
+    color: var(--signal-on);
+  }
+
+  .term-detail {
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.7;
+  }
+
+  .output-card {
+    margin-top: 18px;
+    border-radius: 24px;
+    padding: 20px;
+    background: linear-gradient(180deg, rgba(255, 252, 245, 0.98), rgba(246, 239, 225, 0.95));
+    border: 1px solid rgba(190, 169, 138, 0.78);
+  }
+
+  .output-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .output-box {
+    border-radius: 18px;
+    border: 1px solid var(--border);
+    padding: 14px;
+    background: rgba(255, 255, 255, 0.72);
+  }
+
+  .output-box .ribbon-value {
+    font-size: 1.9rem;
+  }
+
+  .equality {
+    margin-top: 14px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border-radius: 999px;
+    padding: 8px 12px;
+    background: rgba(15, 118, 110, 0.10);
+    color: var(--accent);
+    border: 1px solid rgba(15, 118, 110, 0.22);
+    font-size: 13px;
+  }
+
+  .explanation {
+    margin-top: 14px;
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.8;
+  }
+
+  .jump-row {
+    margin-top: 14px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .term-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+
+  .term-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .chip-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 999px;
+    display: inline-block;
+  }
+
+  .chip-dot.bc { background: var(--accent); }
+  .chip-dot.bd { background: var(--gold); }
+  .chip-dot.cd { background: var(--rose); }
+
+  .kmap-shell {
+    background: rgba(255, 252, 245, 0.98);
+    border: 1px solid rgba(190, 169, 138, 0.78);
+    border-radius: 24px;
+    padding: 14px;
+  }
+
+  svg {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+
+  .k-label {
+    fill: var(--muted);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+  }
+
+  .k-formula {
+    fill: var(--text);
+    font-size: 14px;
+  }
+
+  .kcell {
+    transition: fill 180ms ease, stroke-width 180ms ease, transform 180ms ease;
+    cursor: pointer;
+  }
+
+  .cell-outline {
+    fill: none;
+    stroke: rgba(47, 36, 24, 0.15);
+    stroke-width: 1.5;
+  }
+
+  .cell-on {
+    fill: rgba(15, 118, 110, 0.12);
+  }
+
+  .cell-off {
+    fill: rgba(215, 198, 174, 0.35);
+  }
+
+  .cell-current {
+    stroke: var(--text);
+    stroke-width: 3;
+  }
+
+  .cell-covered {
+    fill: rgba(15, 118, 110, 0.16);
+  }
+
+  .cell-text {
+    fill: var(--text);
+    font-size: 16px;
+    font-family: 'Fraunces', serif;
+  }
+
+  .cell-subtext {
+    fill: var(--muted);
+    font-size: 11px;
+  }
+
+  .group {
+    fill-opacity: 0.12;
+    stroke-width: 3;
+    stroke-dasharray: 8 7;
+    transition: opacity 180ms ease, stroke-width 180ms ease, fill-opacity 180ms ease;
+  }
+
+  .group.bc { fill: var(--accent); stroke: var(--accent); }
+  .group.bd { fill: var(--gold); stroke: var(--gold); }
+  .group.cd { fill: var(--rose); stroke: var(--rose); }
+
+  .group.is-dimmed { opacity: 0.25; }
+  .group.is-highlighted {
+    opacity: 1;
+    fill-opacity: 0.18;
+    stroke-width: 4;
+  }
+
+  .kmap-caption {
+    margin-top: 14px;
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.75;
+  }
+
+  .table-wrap {
+    overflow-x: auto;
+    border-radius: 22px;
+    border: 1px solid rgba(190, 169, 138, 0.74);
+    background: rgba(255, 252, 245, 0.95);
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 760px;
+  }
+
+  th,
+  td {
+    padding: 12px 14px;
+    text-align: left;
+    border-bottom: 1px solid rgba(190, 169, 138, 0.45);
+    font-size: 13px;
+  }
+
+  th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: rgba(246, 239, 225, 0.98);
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-size: 11px;
+  }
+
+  tbody tr {
+    cursor: pointer;
+    transition: background 160ms ease;
+  }
+
+  tbody tr:hover {
+    background: rgba(15, 118, 110, 0.06);
+  }
+
+  tbody tr.current {
+    background: rgba(15, 118, 110, 0.10);
+  }
+
+  .bit {
+    display: inline-flex;
+    min-width: 28px;
+    justify-content: center;
+    align-items: center;
+    border-radius: 999px;
+    padding: 5px 8px;
+    background: rgba(215, 198, 174, 0.36);
+  }
+
+  .bit.on {
+    background: rgba(15, 118, 110, 0.12);
+    color: var(--signal-on);
+  }
+
+  .proof-grid {
+    display: grid;
+    gap: 12px;
+  }
+
+  .metric-row {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+    margin-top: 6px;
+  }
+
+  .metric {
+    background: rgba(255, 252, 245, 0.96);
+    border: 1px solid rgba(190, 169, 138, 0.78);
+    border-radius: 18px;
+    padding: 14px;
+  }
+
+  .metric .ribbon-value {
+    font-size: 2rem;
+  }
+
+  .proof-card {
+    background: rgba(255, 252, 245, 0.96);
+    border: 1px solid rgba(190, 169, 138, 0.78);
+    border-radius: 20px;
+    padding: 16px;
+  }
+
+  .proof-card.active {
+    box-shadow: inset 0 0 0 1px rgba(15, 118, 110, 0.18);
+    border-color: rgba(15, 118, 110, 0.45);
+  }
+
+  .proof-card p {
+    margin-top: 8px;
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.7;
+  }
+
+  .footnote {
+    margin-top: 14px;
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.8;
+  }
+
+  @media (max-width: 1060px) {
+    .workspace,
+    .analysis-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 760px) {
+    .page {
+      padding: 18px 14px 32px;
+    }
+
+    .hero,
+    .panel {
+      padding: 20px;
+      border-radius: 22px;
+    }
+
+    .equation-strip {
+      grid-template-columns: 1fr;
+    }
+
+    .arrow {
+      display: none;
+    }
+
+    .panel-head {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+
+    .toggle-row,
+    .output-grid,
+    .metric-row {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+</head>
+<body>
+  <div class="page">
+    <header class="hero">
+      <div class="eyebrow">Boolean Algebra Visualizer</div>
+      <h1>Consensus theorem, made visible.</h1>
+      <p class="hero-copy">
+        This page shows why the consensus term <strong>CD</strong> can be removed from
+        <strong>BC + B'D + CD</strong> without changing the function. Toggle the inputs, click
+        the Karnaugh map, or run through all eight rows to see that <strong>CD</strong> never
+        creates a new output by itself.
+      </p>
+
+      <div class="equation-strip">
+        <div class="equation-card consensus">
+          <div class="equation-label">Original Expression</div>
+          <div class="equation">F = BC + B'D + CD</div>
+        </div>
+        <div class="arrow">&rarr;</div>
+        <div class="equation-card simplified">
+          <div class="equation-label">After Consensus Reduction</div>
+          <div class="equation">F = BC + B'D</div>
+        </div>
+      </div>
+    </header>
+
+    <section class="workspace">
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>Input Explorer</h2>
+          </div>
+          <p>Change B, C, and D directly or step through the truth table one row at a time.</p>
+        </div>
+
+        <div class="toggle-row">
+          <button class="input-toggle" data-var="b" type="button" aria-pressed="false">
+            <div class="toggle-name">Input B</div>
+            <div class="toggle-value" id="toggle-b">0</div>
+          </button>
+          <button class="input-toggle" data-var="c" type="button" aria-pressed="false">
+            <div class="toggle-name">Input C</div>
+            <div class="toggle-value" id="toggle-c">0</div>
+          </button>
+          <button class="input-toggle" data-var="d" type="button" aria-pressed="false">
+            <div class="toggle-name">Input D</div>
+            <div class="toggle-value" id="toggle-d">0</div>
+          </button>
+        </div>
+
+        <div class="transport">
+          <button id="prev-btn" class="action-btn" type="button">Prev</button>
+          <button id="next-btn" class="action-btn" type="button">Next</button>
+          <button id="auto-btn" class="action-btn primary" type="button">Auto Play</button>
+        </div>
+
+        <div class="state-ribbon">
+          <div class="ribbon-card">
+            <div class="ribbon-label">Current State</div>
+            <div class="ribbon-value" id="state-label">BCD = 000</div>
+          </div>
+          <div class="ribbon-card">
+            <div class="ribbon-label">Active Minterm</div>
+            <div class="ribbon-value" id="minterm-label">m0</div>
+          </div>
+        </div>
+
+        <div class="term-grid">
+          <article class="term-card bc" data-term="bc" tabindex="0">
+            <div class="term-top">
+              <div>
+                <div class="term-role">Prime Implicant</div>
+                <h3 class="term-name">BC</h3>
+              </div>
+              <div class="term-badge" id="badge-bc">0</div>
+            </div>
+            <p class="term-detail">This term covers the cells where <strong>B = 1</strong> and <strong>C = 1</strong>.</p>
+          </article>
+
+          <article class="term-card bd" data-term="bd" tabindex="0">
+            <div class="term-top">
+              <div>
+                <div class="term-role">Prime Implicant</div>
+                <h3 class="term-name">B'D</h3>
+              </div>
+              <div class="term-badge" id="badge-bd">0</div>
+            </div>
+            <p class="term-detail">This term covers the cells where <strong>B = 0</strong> and <strong>D = 1</strong>.</p>
+          </article>
+
+          <article class="term-card cd" data-term="cd" tabindex="0">
+            <div class="term-top">
+              <div>
+                <div class="term-role">Consensus Term</div>
+                <h3 class="term-name">CD</h3>
+              </div>
+              <div class="term-badge" id="badge-cd">0</div>
+            </div>
+            <p class="term-detail">This term turns on only when <strong>C = 1</strong> and <strong>D = 1</strong>, but it adds no unique row.</p>
+          </article>
+        </div>
+
+        <div class="output-card">
+          <div class="output-grid">
+            <div class="output-box">
+              <div class="ribbon-label">BC + B'D + CD</div>
+              <div class="ribbon-value" id="lhs-value">0</div>
+            </div>
+            <div class="output-box">
+              <div class="ribbon-label">BC + B'D</div>
+              <div class="ribbon-value" id="rhs-value">0</div>
+            </div>
+          </div>
+
+          <div class="equality" id="equality-pill">Outputs match for this input.</div>
+          <p class="explanation" id="state-explanation"></p>
+
+          <div class="jump-row">
+            <button class="jump-btn" data-index="3" type="button">Jump to 011</button>
+            <button class="jump-btn" data-index="7" type="button">Jump to 111</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>Coverage Map</h2>
+          </div>
+          <p>Focus a term to see the region it covers. Click any cell to load that input combination.</p>
+        </div>
+
+        <div class="term-legend">
+          <button class="term-chip bc" data-focus="bc" type="button"><span class="chip-dot bc"></span>BC</button>
+          <button class="term-chip bd" data-focus="bd" type="button"><span class="chip-dot bd"></span>B'D</button>
+          <button class="term-chip cd" data-focus="cd" type="button"><span class="chip-dot cd"></span>CD</button>
+        </div>
+
+        <div class="kmap-shell">
+          <svg viewBox="0 0 540 332" aria-label="Karnaugh map for the consensus theorem">
+            <text class="k-label" x="94" y="34">CD columns</text>
+            <text class="k-label" x="30" y="102">B</text>
+            <text class="k-formula" x="110" y="62">C'D'</text>
+            <text class="k-formula" x="216" y="62">C'D</text>
+            <text class="k-formula" x="334" y="62">CD</text>
+            <text class="k-formula" x="428" y="62">CD'</text>
+            <text class="k-formula" x="34" y="146">B'</text>
+            <text class="k-formula" x="42" y="236">B</text>
+
+            <rect class="group bc" id="group-bc" x="286" y="162" width="198" height="76" rx="20"></rect>
+            <rect class="group bd" id="group-bd" x="186" y="72" width="198" height="76" rx="20"></rect>
+            <rect class="group cd" id="group-cd" x="286" y="72" width="98" height="166" rx="20"></rect>
+
+            <g id="kmap-cells"></g>
+          </svg>
+        </div>
+
+        <p class="kmap-caption" id="kmap-caption">
+          The red <strong>CD</strong> group is the consensus term. Watch the two cells in the <strong>11</strong>
+          column: the upper one is already covered by <strong>B'D</strong>, and the lower one is already covered by
+          <strong>BC</strong>.
+        </p>
+      </div>
+    </section>
+
+    <section class="analysis-grid">
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>Truth Table</h2>
+          </div>
+          <p>Every row on the left expression matches the simplified form on the right. Click a row to inspect it.</p>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>BCD</th>
+                <th>BC</th>
+                <th>B'D</th>
+                <th>CD</th>
+                <th>BC + B'D + CD</th>
+                <th>BC + B'D</th>
+                <th>Observation</th>
+              </tr>
+            </thead>
+            <tbody id="truth-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>Why CD Drops Out</h2>
+          </div>
+          <p>The consensus theorem says <strong>XY + X'Z + YZ = XY + X'Z</strong>.</p>
+        </div>
+
+        <div class="metric-row">
+          <div class="metric">
+            <div class="ribbon-label">Rows With CD = 1</div>
+            <div class="ribbon-value" id="cd-rows">0</div>
+          </div>
+          <div class="metric">
+            <div class="ribbon-label">Rows Changed If CD Is Removed</div>
+            <div class="ribbon-value" id="changed-rows">0</div>
+          </div>
+          <div class="metric">
+            <div class="ribbon-label">Rows Unique To CD</div>
+            <div class="ribbon-value" id="unique-rows">0</div>
+          </div>
+        </div>
+
+        <div class="proof-grid" style="margin-top: 16px;">
+          <div class="proof-card" id="proof-b0">
+            <div class="term-role">Case 1</div>
+            <h3>B = 0 and CD = 1</h3>
+            <p>If <strong>B = 0</strong> while <strong>C = 1</strong> and <strong>D = 1</strong>, then <strong>B'D = 1</strong>. The simplified expression already outputs 1.</p>
+          </div>
+          <div class="proof-card" id="proof-b1">
+            <div class="term-role">Case 2</div>
+            <h3>B = 1 and CD = 1</h3>
+            <p>If <strong>B = 1</strong> while <strong>C = 1</strong> and <strong>D = 1</strong>, then <strong>BC = 1</strong>. The simplified expression already outputs 1.</p>
+          </div>
+        </div>
+
+        <p class="footnote" id="proof-note">
+          Mapping the general theorem to this example gives <strong>X = B</strong>, <strong>Y = C</strong>, and
+          <strong>Z = D</strong>. That makes <strong>YZ = CD</strong> the consensus term.
+        </p>
+      </div>
+    </section>
+  </div>
+
+<script>
+  const states = Array.from({ length: 8 }, (_, index) => ({
+    index,
+    b: (index >> 2) & 1,
+    c: (index >> 1) & 1,
+    d: index & 1
+  }));
+
+  const grayColumns = [
+    { c: 0, d: 0 },
+    { c: 0, d: 1 },
+    { c: 1, d: 1 },
+    { c: 1, d: 0 }
+  ];
+
+  const cellGroup = document.getElementById('kmap-cells');
+  let currentIndex = 0;
+  let focusTerm = 'cd';
+  let autoplayId = null;
+
+  function evaluate(state) {
+    const bc = state.b && state.c;
+    const bd = (1 - state.b) && state.d;
+    const cd = state.c && state.d;
+    const lhs = bc || bd || cd;
+    const rhs = bc || bd;
+
+    return {
+      bc: Number(bc),
+      bd: Number(bd),
+      cd: Number(cd),
+      lhs: Number(lhs),
+      rhs: Number(rhs),
+      uniqueConsensus: Number(cd && !bc && !bd)
+    };
+  }
+
+  function bitsLabel(state) {
+    return '' + state.b + state.c + state.d;
+  }
+
+  function findIndexFromBits(b, c, d) {
+    return (b << 2) | (c << 1) | d;
+  }
+
+  function stateDescription(state, values) {
+    if (values.cd && values.bd) {
+      return 'CD is active, but B\'D already covers this row. Removing CD changes nothing.';
+    }
+
+    if (values.cd && values.bc) {
+      return 'CD is active, but BC already covers this row. Removing CD changes nothing.';
+    }
+
+    if (values.bc && !values.bd) {
+      return 'The output is 1 because BC is active. The consensus term is not needed here.';
+    }
+
+    if (values.bd && !values.bc) {
+      return 'The output is 1 because B\'D is active. The consensus term is not needed here.';
+    }
+
+    return 'All three product terms are 0 here, so both expressions output 0.';
+  }
+
+  function focusCaption(term) {
+    if (term === 'bc') {
+      return 'BC covers the lower-right horizontal pair. It includes 111, so one of the CD cells is already handled.';
+    }
+
+    if (term === 'bd') {
+      return 'B\'D covers the upper middle pair. It includes 011, so the other CD cell is already handled.';
+    }
+
+    return 'The red CD group is the consensus term. Its two cells are split between BC and B\'D, so it adds no unique coverage.';
+  }
+
+  function buildKMap() {
+    const startX = 86;
+    const startY = 72;
+    const cellW = 100;
+    grayColumns.forEach((col, colIndex) => {
+      [0, 1].forEach((rowB) => {
+        const x = startX + colIndex * cellW;
+        const y = startY + rowB * 90;
+        const stateIndex = findIndexFromBits(rowB, col.c, col.d);
+        const state = states[stateIndex];
+        const values = evaluate(state);
+        const cell = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+
+        cell.classList.add('kcell');
+        cell.dataset.index = String(stateIndex);
+        cell.innerHTML = `
+          <rect id="fill-${stateIndex}" class="${values.rhs ? 'cell-on' : 'cell-off'}" x="${x}" y="${y}" width="98" height="76" rx="18"></rect>
+          <rect id="outline-${stateIndex}" class="cell-outline" x="${x}" y="${y}" width="98" height="76" rx="18"></rect>
+          <text class="cell-text" x="${x + 49}" y="${y + 34}" text-anchor="middle">${values.rhs}</text>
+          <text class="cell-subtext" x="${x + 49}" y="${y + 55}" text-anchor="middle">${bitsLabel(state)}</text>
+        `;
+
+        cell.addEventListener('click', () => {
+          setState(stateIndex, true);
+        });
+
+        cellGroup.appendChild(cell);
+      });
+    });
+  }
+
+  function buildTruthTable() {
+    const body = document.getElementById('truth-body');
+    body.innerHTML = states.map((state) => {
+      const values = evaluate(state);
+      let observation = 'output stays 0';
+
+      if (values.cd && values.bd) {
+        observation = 'CD overlaps B\'D';
+      } else if (values.cd && values.bc) {
+        observation = 'CD overlaps BC';
+      } else if (values.bc) {
+        observation = 'covered by BC';
+      } else if (values.bd) {
+        observation = 'covered by B\'D';
+      }
+
+      return `
+        <tr data-index="${state.index}">
+          <td>${bitsLabel(state)}</td>
+          <td><span class="bit ${values.bc ? 'on' : ''}">${values.bc}</span></td>
+          <td><span class="bit ${values.bd ? 'on' : ''}">${values.bd}</span></td>
+          <td><span class="bit ${values.cd ? 'on' : ''}">${values.cd}</span></td>
+          <td><span class="bit ${values.lhs ? 'on' : ''}">${values.lhs}</span></td>
+          <td><span class="bit ${values.rhs ? 'on' : ''}">${values.rhs}</span></td>
+          <td>${observation}</td>
+        </tr>
+      `;
+    }).join('');
+
+    body.querySelectorAll('tr').forEach((row) => {
+      row.addEventListener('click', () => {
+        setState(Number(row.dataset.index), true);
+      });
+    });
+  }
+
+  function updateMetrics() {
+    const totalCdRows = states.filter((state) => evaluate(state).cd).length;
+    const changedRows = states.filter((state) => {
+      const values = evaluate(state);
+      return values.lhs !== values.rhs;
+    }).length;
+    const uniqueRows = states.filter((state) => evaluate(state).uniqueConsensus).length;
+
+    document.getElementById('cd-rows').textContent = String(totalCdRows);
+    document.getElementById('changed-rows').textContent = String(changedRows);
+    document.getElementById('unique-rows').textContent = String(uniqueRows);
+  }
+
+  function updateFocus() {
+    document.querySelectorAll('.term-card').forEach((card) => {
+      const active = card.dataset.term === focusTerm;
+      card.classList.toggle('is-focused', active);
+    });
+
+    document.querySelectorAll('.term-chip').forEach((chip) => {
+      const active = chip.dataset.focus === focusTerm;
+      chip.classList.toggle('is-active', active);
+    });
+
+    ['bc', 'bd', 'cd'].forEach((term) => {
+      const group = document.getElementById(`group-${term}`);
+      const active = term === focusTerm;
+      group.classList.toggle('is-highlighted', active);
+      group.classList.toggle('is-dimmed', !active);
+    });
+
+    document.getElementById('kmap-caption').innerHTML = focusCaption(focusTerm);
+  }
+
+  function updateCurrentCell(values) {
+    states.forEach((state) => {
+      const fill = document.getElementById(`fill-${state.index}`);
+      const outline = document.getElementById(`outline-${state.index}`);
+      fill.classList.remove('cell-covered');
+      outline.classList.remove('cell-current');
+    });
+
+    const currentFill = document.getElementById(`fill-${currentIndex}`);
+    const currentOutline = document.getElementById(`outline-${currentIndex}`);
+    currentOutline.classList.add('cell-current');
+
+    const isCoveredByFocus =
+      (focusTerm === 'bc' && values.bc) ||
+      (focusTerm === 'bd' && values.bd) ||
+      (focusTerm === 'cd' && values.cd);
+
+    if (isCoveredByFocus) {
+      currentFill.classList.add('cell-covered');
+    }
+  }
+
+  function updateProofCards(state, values) {
+    const proofB0 = document.getElementById('proof-b0');
+    const proofB1 = document.getElementById('proof-b1');
+    proofB0.classList.toggle('active', values.cd && state.b === 0);
+    proofB1.classList.toggle('active', values.cd && state.b === 1);
+  }
+
+  function render() {
+    const state = states[currentIndex];
+    const values = evaluate(state);
+
+    document.getElementById('toggle-b').textContent = String(state.b);
+    document.getElementById('toggle-c').textContent = String(state.c);
+    document.getElementById('toggle-d').textContent = String(state.d);
+
+    document.querySelectorAll('.input-toggle').forEach((toggle) => {
+      const key = toggle.dataset.var;
+      const isOn = Boolean(state[key]);
+      toggle.classList.toggle('active', isOn);
+      toggle.setAttribute('aria-pressed', String(isOn));
+    });
+
+    document.getElementById('state-label').textContent = `BCD = ${bitsLabel(state)}`;
+    document.getElementById('minterm-label').textContent = `m${state.index}`;
+    document.getElementById('badge-bc').textContent = String(values.bc);
+    document.getElementById('badge-bd').textContent = String(values.bd);
+    document.getElementById('badge-cd').textContent = String(values.cd);
+    document.getElementById('lhs-value').textContent = String(values.lhs);
+    document.getElementById('rhs-value').textContent = String(values.rhs);
+    document.getElementById('equality-pill').textContent =
+      values.cd && (values.bc || values.bd)
+        ? 'Equivalent: CD is active, but another term already covers this row.'
+        : `Equivalent: both expressions output ${values.rhs}.`;
+    document.getElementById('state-explanation').textContent = stateDescription(state, values);
+
+    document.querySelectorAll('.term-card').forEach((card) => {
+      const term = card.dataset.term;
+      const active =
+        (term === 'bc' && values.bc) ||
+        (term === 'bd' && values.bd) ||
+        (term === 'cd' && values.cd);
+      card.classList.toggle('is-active', active);
+    });
+
+    document.querySelectorAll('#truth-body tr').forEach((row) => {
+      row.classList.toggle('current', Number(row.dataset.index) === currentIndex);
+    });
+
+    updateCurrentCell(values);
+    updateFocus();
+    updateProofCards(state, values);
+  }
+
+  function setState(index, stopAutoplay = false) {
+    currentIndex = (index + states.length) % states.length;
+    if (stopAutoplay) {
+      stopAutoPlay();
+    }
+    render();
+  }
+
+  function setStateByBits(nextState) {
+    const index = findIndexFromBits(nextState.b, nextState.c, nextState.d);
+    setState(index, true);
+  }
+
+  function startAutoPlay() {
+    if (autoplayId) {
+      return;
+    }
+
+    autoplayId = window.setInterval(() => {
+      currentIndex = (currentIndex + 1) % states.length;
+      render();
+    }, 1300);
+
+    document.getElementById('auto-btn').textContent = 'Stop';
+    document.getElementById('auto-btn').classList.add('active');
+  }
+
+  function stopAutoPlay() {
+    if (!autoplayId) {
+      return;
+    }
+
+    window.clearInterval(autoplayId);
+    autoplayId = null;
+    document.getElementById('auto-btn').textContent = 'Auto Play';
+    document.getElementById('auto-btn').classList.remove('active');
+  }
+
+  buildKMap();
+  buildTruthTable();
+  updateMetrics();
+
+  document.querySelectorAll('.input-toggle').forEach((toggle) => {
+    toggle.addEventListener('click', () => {
+      const state = states[currentIndex];
+      const key = toggle.dataset.var;
+      setStateByBits({
+        b: key === 'b' ? 1 - state.b : state.b,
+        c: key === 'c' ? 1 - state.c : state.c,
+        d: key === 'd' ? 1 - state.d : state.d
+      });
+    });
+  });
+
+  document.getElementById('prev-btn').addEventListener('click', () => setState(currentIndex - 1, true));
+  document.getElementById('next-btn').addEventListener('click', () => setState(currentIndex + 1, true));
+  document.getElementById('auto-btn').addEventListener('click', () => {
+    if (autoplayId) {
+      stopAutoPlay();
+    } else {
+      startAutoPlay();
+    }
+  });
+
+  document.querySelectorAll('.term-card').forEach((card) => {
+    const applyFocus = () => {
+      focusTerm = card.dataset.term;
+      render();
+    };
+
+    card.addEventListener('click', applyFocus);
+    card.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        applyFocus();
+      }
+    });
+  });
+
+  document.querySelectorAll('.term-chip').forEach((chip) => {
+    chip.addEventListener('click', () => {
+      focusTerm = chip.dataset.focus;
+      render();
+    });
+  });
+
+  document.querySelectorAll('.jump-btn').forEach((button) => {
+    button.addEventListener('click', () => {
+      setState(Number(button.dataset.index), true);
+    });
+  });
+
+  render();
+</script>
+</body>
+</html>
