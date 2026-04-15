@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MCTS Phases Visualizer</title>
+<style>
+  :root {
+    --bg: #f4f4f4;
+    --panel: #ffffff;
+    --border: #d9d9d9;
+    --text: #222222;
+    --muted: #666666;
+    --blue: #2563eb;
+    --green: #0f766e;
+    --orange: #b45309;
+    --gray: #9ca3af;
+    --stage-width: 1200px;
+    --stage-height: 760px;
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+
+  .page {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 20px;
+  }
+
+  .topbar,
+  .message,
+  .stats {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+  }
+
+  .topbar {
+    padding: 18px;
+  }
+
+  h1 {
+    font-size: 1.6rem;
+    margin-bottom: 6px;
+  }
+
+  .subtitle {
+    color: var(--muted);
+    font-size: 0.95rem;
+    line-height: 1.5;
+  }
+
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px 18px;
+    align-items: center;
+    margin-top: 16px;
+  }
+
+  .control-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .control-label {
+    font-size: 0.9rem;
+    color: var(--muted);
+  }
+
+  button {
+    border: 1px solid var(--border);
+    background: #fafafa;
+    color: var(--text);
+    border-radius: 10px;
+    padding: 10px 14px;
+    cursor: pointer;
+    font: inherit;
+  }
+
+  button:hover {
+    background: #f0f0f0;
+  }
+
+  button:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+
+  .phase-row {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+    margin-top: 16px;
+  }
+
+  .phase {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px;
+    background: #fafafa;
+    font-size: 0.9rem;
+    text-align: center;
+  }
+
+  .phase.active {
+    border-color: var(--blue);
+    background: #eef4ff;
+    color: var(--blue);
+    font-weight: 600;
+  }
+
+  .phase.done {
+    border-color: #b6d6cc;
+    background: #eef8f5;
+    color: var(--green);
+  }
+
+  .stage-wrap {
+    overflow: auto;
+    margin-top: 18px;
+    padding-bottom: 6px;
+  }
+
+  .stage {
+    position: relative;
+    width: var(--stage-width);
+    height: var(--stage-height);
+    margin: 0 auto;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+  }
+
+  .stage-title {
+    position: absolute;
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 2;
+    background: #fafafa;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 8px 12px;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+
+  svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  .edge {
+    fill: none;
+    stroke: #cfcfcf;
+    stroke-width: 4;
+    stroke-linecap: round;
+  }
+
+  .edge.path {
+    stroke: var(--blue);
+    stroke-width: 6;
+  }
+
+  .edge.backprop {
+    stroke: var(--orange);
+    stroke-width: 6;
+  }
+
+  .edge.preview {
+    stroke: #9ec0ff;
+    stroke-width: 5;
+  }
+
+  .nodes {
+    position: absolute;
+    inset: 0;
+  }
+
+  .node {
+    position: absolute;
+    width: 180px;
+    min-height: 128px;
+    transform: translate(-50%, -50%);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: #ffffff;
+    padding: 12px;
+  }
+
+  .node.root {
+    width: 190px;
+  }
+
+  .node.current {
+    border-color: var(--blue);
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.12);
+  }
+
+  .node.selected {
+    border-color: #9ec0ff;
+    background: #f7fbff;
+  }
+
+  .node.expanded {
+    border-color: var(--green);
+    background: #f2fbf8;
+  }
+
+  .node.frontier {
+    border-color: var(--orange);
+    background: #fff7f0;
+  }
+
+  .node.backprop {
+    border-color: var(--orange);
+  }
+
+  .node-tag {
+    font-size: 0.72rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .node-title {
+    margin-top: 8px;
+    font-size: 1.3rem;
+    font-weight: 700;
+  }
+
+  .node-subtitle {
+    margin-top: 4px;
+    color: var(--muted);
+    font-size: 0.8rem;
+  }
+
+  .node-stats {
+    margin-top: 10px;
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    font-size: 0.78rem;
+    color: var(--muted);
+  }
+
+  .node-score {
+    margin-top: 10px;
+    padding: 8px 10px;
+    border-radius: 10px;
+    background: #f7f7f7;
+    font-size: 0.78rem;
+    line-height: 1.5;
+  }
+
+  .node-score strong {
+    color: var(--blue);
+  }
+
+  .node-score.rollout strong,
+  .node-score.backprop strong {
+    color: var(--orange);
+  }
+
+  .message {
+    margin-top: 18px;
+    padding: 16px 18px;
+    font-size: 0.95rem;
+    line-height: 1.7;
+  }
+
+  .message strong {
+    color: var(--blue);
+  }
+
+  .stats {
+    margin-top: 12px;
+    padding: 14px 18px;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+  }
+
+  .stat-label {
+    color: var(--muted);
+    font-size: 0.8rem;
+    margin-bottom: 4px;
+  }
+
+  .stat-value {
+    font-size: 0.95rem;
+    line-height: 1.6;
+  }
+
+  @media (max-width: 900px) {
+    .phase-row,
+    .stats {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <section class="topbar">
+    <h1>Monte Carlo Tree Search</h1>
+    <p class="subtitle">
+      This page shows one MCTS iteration using the standard phases:
+      <strong>Selection</strong>,
+      <strong>Expansion</strong>,
+      <strong>Simulation</strong>,
+      <strong>Backpropagation</strong>.
+      During selection, child choices use the UCB1 formula.
+    </p>
+
+    <div class="controls">
+      <div class="control-group">
+        <button id="nextBtn" type="button">Next</button>
+        <button id="playBtn" type="button">Play full iteration</button>
+        <button id="resetBtn" type="button">Reset</button>
+      </div>
+    </div>
+
+    <div class="phase-row">
+      <div id="phase-selection" class="phase active">1. Selection</div>
+      <div id="phase-expansion" class="phase">2. Expansion</div>
+      <div id="phase-simulation" class="phase">3. Simulation</div>
+      <div id="phase-backpropagation" class="phase">4. Backpropagation</div>
+    </div>
+  </section>
+
+  <div class="stage-wrap">
+    <section class="stage">
+      <div class="stage-title">UCB1 = Q / N + sqrt((2 ln N_parent) / N_child)</div>
+      <svg id="edges" viewBox="0 0 1200 760" preserveAspectRatio="none" aria-hidden="true"></svg>
+      <div id="nodes" class="nodes"></div>
+    </section>
+  </div>
+
+  <section id="message" class="message"></section>
+
+  <section class="stats">
+    <div>
+      <div class="stat-label">Current phase</div>
+      <div id="statPhase" class="stat-value">Selection</div>
+    </div>
+    <div>
+      <div class="stat-label">Current path</div>
+      <div id="statPath" class="stat-value">Root</div>
+    </div>
+    <div>
+      <div class="stat-label">Rollout result</div>
+      <div id="statRollout" class="stat-value">Not simulated yet</div>
+    </div>
+  </section>
+</div>
+
+<script>
+  // ─── Fixed data ───────────────────────────────────────────────────────────
+
+  const NODE_POSITIONS = {
+    root: { x: 50, y: 10 },
+    A:    { x: 20, y: 34 }, B: { x: 50, y: 34 }, C: { x: 80, y: 34 },
+    B1:   { x: 40, y: 60 }, B2: { x: 60, y: 60 },
+    A_new: { x: 20, y: 84 }, B1_new: { x: 40, y: 86 },
+    B2_new: { x: 60, y: 86 }, C_new: { x: 80, y: 84 }
+  };
+
+  const STARTING_TREE = {
+    root: { label: 'Root', caption: 'start state',   visits: 32, value: 20.90, children: ['A', 'B', 'C'] },
+    A:    { label: 'A',    caption: 'visited leaf',   visits: 16, value: 11.20, children: [] },
+    B:    { label: 'B',    caption: 'internal node',  visits: 10, value:  7.60, children: ['B1', 'B2'] },
+    C:    { label: 'C',    caption: 'visited leaf',   visits:  6, value:  2.10, children: [] },
+    B1:   { label: 'B1',   caption: 'visited leaf',   visits:  6, value:  4.80, children: [] },
+    B2:   { label: 'B2',   caption: 'visited leaf',   visits:  4, value:  2.80, children: [] }
+  };
+
+  // Pre-determined rollout results for each possible selection stop
+  const ROLLOUT_RESULT_FOR = { A: 0.48, B1: 0.35, B2: 0.82, C: 0.91 };
+
+  // ─── Mutable iteration state ──────────────────────────────────────────────
+
+  const state = {
+    tree: fresh_copy_of_starting_tree(),
+    current_node_id: 'root',
+    path_walked_so_far: ['root'],
+    selection_stop_node_id: null,   // set when selection phase is done
+    newly_expanded_node_id: null,   // set when expansion phase is done
+    rollout_result: null,           // set when simulation phase is done
+    backprop_is_done: false,
+    autoplay_timer_id: null
+  };
+
+  const ui = {
+    nextBtn:        document.getElementById('nextBtn'),
+    playBtn:        document.getElementById('playBtn'),
+    resetBtn:       document.getElementById('resetBtn'),
+    nodesLayer:     document.getElementById('nodes'),
+    edgesLayer:     document.getElementById('edges'),
+    messageBox:     document.getElementById('message'),
+    statPhase:      document.getElementById('statPhase'),
+    statPath:       document.getElementById('statPath'),
+    statRollout:    document.getElementById('statRollout'),
+    phaseSelection: document.getElementById('phase-selection'),
+    phaseExpansion: document.getElementById('phase-expansion'),
+    phaseSimulation:document.getElementById('phase-simulation'),
+    phaseBackprop:  document.getElementById('phase-backpropagation')
+  };
+
+  // ─── Helpers ──────────────────────────────────────────────────────────────
+
+  function fresh_copy_of_starting_tree() {
+    return JSON.parse(JSON.stringify(STARTING_TREE));
+  }
+
+  function get_node(node_id) {
+    return state.tree[node_id];
+  }
+
+  function win_rate_of(node) {
+    return node.visits > 0 ? node.value / node.visits : null;
+  }
+
+  function which_phase_are_we_in() {
+    if (state.backprop_is_done)            return 'backpropagation';
+    if (state.rollout_result !== null)      return 'simulation';
+    if (state.newly_expanded_node_id)      return 'expansion';
+    return 'selection';
+  }
+
+  function node_still_has_unvisited_children(node_id) {
+    const node = get_node(node_id);
+    return node.visits > 0 && node.children.length > 0;
+  }
+
+  // Score every child of parent_id with UCB1 (win rate + curiosity bonus).
+  // Unvisited children automatically win — they get score = +Infinity.
+  function score_all_children_with_ucb1(parent_id) {
+    const parent = get_node(parent_id);
+    return parent.children.map((child_id, order) => {
+      const child = get_node(child_id);
+      if (child.visits === 0) {
+        return { id: child_id, order, child, unvisited: true, mean: null, bonus: null, score: Infinity };
+      }
+      const mean  = child.value / child.visits;
+      const bonus = Math.sqrt((2 * Math.log(Math.max(parent.visits, 1))) / child.visits);
+      return { id: child_id, order, child, unvisited: false, mean, bonus, score: mean + bonus };
+    });
+  }
+
+  // Return whichever child has the highest UCB1 score right now
+  function pick_child_with_best_ucb1_score(parent_id) {
+    return score_all_children_with_ucb1(parent_id).reduce((best, candidate) => {
+      if (!best) return candidate;
+      if (candidate.unvisited && !best.unvisited) return candidate;
+      if (!candidate.unvisited && best.unvisited) return best;
+      if (candidate.score > best.score + 1e-9) return candidate;
+      if (Math.abs(candidate.score - best.score) <= 1e-9 && candidate.order < best.order) return candidate;
+      return best;
+    }, null);
+  }
+
+  // Used by the renderer to show UCB1 scores on-screen during selection
+  function get_ucb1_scores_for_display() {
+    if (which_phase_are_we_in() !== 'selection' || state.selection_stop_node_id) return {};
+    if (!node_still_has_unvisited_children(state.current_node_id)) return {};
+    return Object.fromEntries(
+      score_all_children_with_ucb1(state.current_node_id).map(c => [c.id, c])
+    );
+  }
+
+  // Peek at which child would win UCB1 on the next click (for the preview edge)
+  function peek_at_next_ucb1_winner() {
+    if (which_phase_are_we_in() !== 'selection' || state.selection_stop_node_id) return null;
+    if (!node_still_has_unvisited_children(state.current_node_id)) return null;
+    return pick_child_with_best_ucb1_score(state.current_node_id).id;
+  }
+
+  // ─── The four MCTS phases ─────────────────────────────────────────────────
+
+  function advance_one_step() {
+    if (state.backprop_is_done) { stop_autoplay_timer(); refresh_display(); return; }
+
+    // ==========================================
+    // PHASE 1: SELECTION (Walking down)
+    // ==========================================
+    // Use UCB1 to keep walking toward the most promising untested spot
+    if (!state.selection_stop_node_id) {
+      walk_down_one_level_using_ucb1();
+    }
+
+    // ==========================================
+    // PHASE 2: EXPANSION (Build one new child)
+    // ==========================================
+    // We hit a node with no tested children. Add exactly one new blank node.
+    else if (!state.newly_expanded_node_id) {
+      add_one_new_child_to_the_selection_stop();
+    }
+
+    // ==========================================
+    // PHASE 3: SIMULATION (Random rollout)
+    // ==========================================
+    // Stop building the tree. Play a random game to get a win/loss result.
+    else if (state.rollout_result === null) {
+      play_random_game_to_the_end();
+    }
+
+    // ==========================================
+    // PHASE 4: BACKPROPAGATION (Update scoreboard)
+    // ==========================================
+    // Walk back up the exact path we came down, adding the result to every node.
+    else {
+      walk_back_up_and_update_every_node_on_the_path();
+    }
+
+    refresh_display();
+  }
+
+  function walk_down_one_level_using_ucb1() {
+    const node_id  = state.current_node_id;
+    const node     = get_node(node_id);
+
+    // If we've hit a leaf (no children to explore), stop here
+    if (!node_still_has_unvisited_children(node_id)) {
+      state.selection_stop_node_id = node_id;
+      return;
+    }
+
+    // Children fight it out: win rate vs. curiosity bonus
+    const winner = pick_child_with_best_ucb1_score(node_id);
+    state.current_node_id = winner.id;
+    state.path_walked_so_far.push(winner.id);
+
+    // Stop walking if the winner also has no children left to explore
+    if (!node_still_has_unvisited_children(winner.id)) {
+      state.selection_stop_node_id = winner.id;
+    }
+  }
+
+  function add_one_new_child_to_the_selection_stop() {
+    const leaf_id = state.selection_stop_node_id;
+    const new_id  = `${leaf_id}_new`;
+    const leaf    = get_node(leaf_id);
+
+    leaf.children.push(new_id);
+    state.tree[new_id] = { label: 'New', caption: 'expanded child', visits: 0, value: 0, children: [] };
+    state.newly_expanded_node_id = new_id;
+  }
+
+  function play_random_game_to_the_end() {
+    // In a real engine this would be a full random playout;
+    // here we just look up the pre-computed result for the demo
+    state.rollout_result = ROLLOUT_RESULT_FOR[state.selection_stop_node_id];
+  }
+
+  function walk_back_up_and_update_every_node_on_the_path() {
+    const reward        = state.rollout_result;
+    const full_path     = [...state.path_walked_so_far, state.newly_expanded_node_id];
+
+    full_path.forEach(node_id => {
+      const node = get_node(node_id);
+      node.visits += 1;
+      node.value  += reward;
+    });
+
+    state.backprop_is_done = true;
+    stop_autoplay_timer();
+  }
+
+  // ─── Autoplay ─────────────────────────────────────────────────────────────
+
+  function play_all_steps_automatically() {
+    if (state.backprop_is_done) return;
+    stop_autoplay_timer();
+    state.autoplay_timer_id = window.setInterval(() => {
+      if (state.backprop_is_done) { stop_autoplay_timer(); refresh_display(); return; }
+      advance_one_step();
+    }, 900);
+    refresh_display();
+  }
+
+  function stop_autoplay_timer() {
+    if (state.autoplay_timer_id !== null) {
+      window.clearInterval(state.autoplay_timer_id);
+      state.autoplay_timer_id = null;
+    }
+  }
+
+  function reset_to_the_beginning() {
+    stop_autoplay_timer();
+    state.tree                    = fresh_copy_of_starting_tree();
+    state.current_node_id         = 'root';
+    state.path_walked_so_far      = ['root'];
+    state.selection_stop_node_id  = null;
+    state.newly_expanded_node_id  = null;
+    state.rollout_result          = null;
+    state.backprop_is_done        = false;
+    state.autoplay_timer_id       = null;
+    refresh_display();
+  }
+
+  // ─── Rendering ────────────────────────────────────────────────────────────
+
+  function collect_edges_on_the_walked_path() {
+    const walked = new Set();
+    for (let i = 0; i < state.path_walked_so_far.length - 1; i++) {
+      walked.add(`${state.path_walked_so_far[i]}->${state.path_walked_so_far[i + 1]}`);
+    }
+    if (state.newly_expanded_node_id) {
+      walked.add(`${state.selection_stop_node_id}->${state.newly_expanded_node_id}`);
+    }
+    return walked;
+  }
+
+  function draw_all_edges() {
+    const preview_winner = peek_at_next_ucb1_winner();
+    const walked_edges   = collect_edges_on_the_walked_path();
+    const backprop_nodes = state.backprop_is_done
+      ? new Set([...state.path_walked_so_far, state.newly_expanded_node_id])
+      : new Set();
+
+    const edge_svgs = [];
+    Object.entries(state.tree).forEach(([node_id, node]) => {
+      node.children.forEach(child_id => {
+        const from = NODE_POSITIONS[node_id];
+        const to   = NODE_POSITIONS[child_id];
+        if (!from || !to) return;
+
+        const classes = ['edge'];
+        if (walked_edges.has(`${node_id}->${child_id}`))                                        classes.push('path');
+        if (!state.backprop_is_done && which_phase_are_we_in() === 'selection'
+            && node_id === state.current_node_id && child_id === preview_winner)                classes.push('preview');
+        if (state.backprop_is_done && backprop_nodes.has(node_id) && backprop_nodes.has(child_id)) classes.push('backprop');
+
+        const x1 = from.x * 12,  y1 = from.y * 7.6;
+        const x2 = to.x * 12,    y2 = to.y * 7.6;
+        const cy = ((from.y + to.y) / 2) * 7.6;
+        edge_svgs.push(
+          `<path class="${classes.join(' ')}" d="M ${x1} ${y1} C ${x1} ${cy}, ${x2} ${cy}, ${x2} ${y2}"></path>`
+        );
+      });
+    });
+
+    ui.edgesLayer.innerHTML = edge_svgs.join('');
+  }
+
+  function draw_all_nodes() {
+    const ucb1_scores    = get_ucb1_scores_for_display();
+    const preview_winner = peek_at_next_ucb1_winner();
+    const backprop_nodes = new Set(state.backprop_is_done
+      ? [...state.path_walked_so_far, state.newly_expanded_node_id] : []);
+
+    ui.nodesLayer.innerHTML = Object.entries(state.tree).map(([node_id, node]) => {
+      const pos = NODE_POSITIONS[node_id];
+      if (!pos) return '';
+
+      // Determine the visual state of this node
+      const classes = ['node'];
+      if (node_id === 'root')                                                    classes.push('root');
+      if (state.path_walked_so_far.includes(node_id))                           classes.push('selected');
+      if (node_id === state.current_node_id && !state.selection_stop_node_id)   classes.push('current');
+      if (node_id === state.selection_stop_node_id)                              classes.push('frontier');
+      if (node_id === state.newly_expanded_node_id)                              classes.push('expanded');
+      if (backprop_nodes.has(node_id))                                           classes.push('backprop');
+
+      // Build the score badge shown inside the node card
+      const score = ucb1_scores[node_id];
+      let score_badge = '';
+      if (score) {
+        score_badge = score.unvisited
+          ? `<div class="node-score"><strong>UCB1:</strong> unvisited — chosen immediately</div>`
+          : `<div class="node-score"><strong>UCB1 ${score.score.toFixed(3)}</strong><br>mean ${score.mean.toFixed(3)} + bonus ${score.bonus.toFixed(3)}</div>`;
+      } else if (node_id === state.newly_expanded_node_id && state.rollout_result !== null && !state.backprop_is_done) {
+        score_badge = `<div class="node-score rollout"><strong>Rollout result</strong><br>${state.rollout_result.toFixed(2)}</div>`;
+      } else if (node_id === state.newly_expanded_node_id && state.backprop_is_done) {
+        score_badge = `<div class="node-score backprop"><strong>Updated by backpropagation</strong></div>`;
+      }
+
+      const tag = (node_id === preview_winner && which_phase_are_we_in() === 'selection' && !state.selection_stop_node_id)
+        ? 'next UCB1 choice'
+        : (node_id === state.selection_stop_node_id ? 'selection stop' : node.caption);
+
+      const mean = win_rate_of(node);
+      return `
+        <div class="${classes.join(' ')}" style="left:${pos.x}%; top:${pos.y}%;">
+          <div class="node-tag">${tag}</div>
+          <div class="node-title">${node.label}</div>
+          <div class="node-subtitle">${node.caption}</div>
+          <div class="node-stats">
+            <span>N ${node.visits}</span>
+            <span>Q ${node.value.toFixed(2)}</span>
+            <span>mean ${mean === null ? '--' : mean.toFixed(3)}</span>
+          </div>
+          ${score_badge}
+        </div>`;
+    }).join('');
+  }
+
+  function highlight_current_phase_in_ui() {
+    const phase = which_phase_are_we_in();
+    const phases = [
+      ['selection',      ui.phaseSelection],
+      ['expansion',      ui.phaseExpansion],
+      ['simulation',     ui.phaseSimulation],
+      ['backpropagation',ui.phaseBackprop]
+    ];
+    const active_index = phases.findIndex(([name]) => name === phase);
+
+    phases.forEach(([name, el], i) => {
+      el.className = 'phase';
+      if (i < active_index) el.classList.add('done');
+      else if (name === phase) el.classList.add('active');
+    });
+  }
+
+  function update_message_and_stats() {
+    const phase       = which_phase_are_we_in();
+    const path_labels = state.path_walked_so_far.map(id => get_node(id).label).join(' -> ');
+    let text = '';
+
+    if (phase === 'selection') {
+      if (!state.selection_stop_node_id) {
+        const next = pick_child_with_best_ucb1_score(state.current_node_id);
+        const here = get_node(state.current_node_id).label;
+        text = next.unvisited
+          ? `Selection is at <strong>${here}</strong>. Next: <strong>${next.child.label}</strong> — unvisited, chosen immediately.`
+          : `Selection is at <strong>${here}</strong>. Next: <strong>${next.child.label}</strong> with UCB1 <strong>${next.score.toFixed(3)}</strong>.`;
+      } else {
+        text = `Selection stopped at <strong>${get_node(state.selection_stop_node_id).label}</strong>. Next phase: expansion.`;
+      }
+    } else if (phase === 'expansion') {
+      text = `Expansion added one new child under <strong>${get_node(state.selection_stop_node_id).label}</strong>.`;
+    } else if (phase === 'simulation') {
+      text = `Simulation ran a random game and returned reward <strong>${state.rollout_result.toFixed(2)}</strong>.`;
+    } else {
+      text = `Backpropagation added reward <strong>${state.rollout_result.toFixed(2)}</strong> to every node on the path.`;
+    }
+
+    ui.messageBox.innerHTML  = text;
+    ui.statPhase.textContent = phase.charAt(0).toUpperCase() + phase.slice(1);
+    ui.statPath.textContent  = path_labels;
+    ui.statRollout.textContent = state.rollout_result === null ? 'Not simulated yet' : state.rollout_result.toFixed(2);
+    ui.nextBtn.disabled      = state.backprop_is_done;
+    ui.playBtn.disabled      = state.backprop_is_done;
+    ui.playBtn.textContent   = state.autoplay_timer_id === null ? 'Play full iteration' : 'Playing…';
+  }
+
+  function refresh_display() {
+    highlight_current_phase_in_ui();
+    draw_all_edges();
+    draw_all_nodes();
+    update_message_and_stats();
+  }
+
+  // ─── Button wiring ────────────────────────────────────────────────────────
+
+  ui.nextBtn.addEventListener('click', advance_one_step);
+  ui.playBtn.addEventListener('click', play_all_steps_automatically);
+  ui.resetBtn.addEventListener('click', reset_to_the_beginning);
+
+  refresh_display();
+</script>
+</body>
+</html>

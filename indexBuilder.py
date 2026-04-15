@@ -28,7 +28,7 @@ html_bottom = """
 content = ""
 
 # Folders to ignore (like git or css folders)
-ignore_folders = ['.git', 'css', 'assets']
+ignore_folders = ['.git', 'css', 'assets', '.Trash']
 
 # Scan the directory
 for item in sorted(os.listdir('.')):
