@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chess MCTS Visualization</title>
+    <style>
+        :root {
+            --bg-color: #ffffff;
+            --sidebar-bg: #f8f9fa;
+            --text-color: #212529;
+            --border-color: #dee2e6;
+            --active-line-bg: #fff3cd;
+            --node-fill: #ffffff;
+            --node-stroke: #495057;
+            --node-text: #212529;
+            --accent-color: #0d6efd;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        #visualization-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid var(--border-color);
+            min-width: 0;
+        }
+
+        #header {
+            padding: 15px 20px;
+            background: var(--sidebar-bg);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        h1 { margin: 0; font-size: 1.25rem; }
+        
+        #tree-area {
+            flex: 1;
+            position: relative;
+            background-image: radial-gradient(#dee2e6 1px, transparent 1px);
+            background-size: 20px 20px;
+            overflow: hidden;
+        }
+
+        #tree-svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        #explanation {
+            padding: 15px 20px;
+            background: var(--sidebar-bg);
+            border-top: 1px solid var(--border-color);
+            font-size: 0.85rem;
+            line-height: 1.4;
+        }
+
+        #sidebar {
+            width: 420px;
+            display: flex;
+            flex-direction: column;
+            background: #ffffff;
+            border-left: 1px solid var(--border-color);
+        }
+
+        #code-container {
+            flex: 1.5;
+            padding: 20px;
+            overflow-y: auto;
+            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+            font-size: 12px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        #debugger-panel {
+            flex: 1;
+            background: #f8f9fa;
+            padding: 20px;
+            overflow-y: auto;
+            font-family: 'SFMono-Regular', Consolas, monospace;
+            font-size: 12px;
+        }
+
+        .debugger-header {
+            font-weight: bold;
+            text-transform: uppercase;
+            color: #6c757d;
+            margin-bottom: 10px;
+            font-size: 10px;
+            letter-spacing: 1px;
+            display: flex;
+            align-items: center;
+        }
+
+        .debugger-header::after {
+            content: "";
+            flex: 1;
+            height: 1px;
+            background: #dee2e6;
+            margin-left: 10px;
+        }
+
+        .variable-item {
+            margin-bottom: 8px;
+            display: flex;
+            flex-wrap: wrap;
+        }
+
+        .var-name { color: #d63384; font-weight: bold; margin-right: 8px; }
+        .var-value { color: #0d6efd; }
+        .var-null { color: #adb5bd; font-style: italic; }
+
+        .code-line {
+            padding: 1px 8px;
+            border-radius: 2px;
+            white-space: pre;
+            border-left: 3px solid transparent;
+        }
+
+        .code-line.active {
+            background-color: var(--active-line-bg);
+            border-left: 3px solid #ffc107;
+            font-weight: 500;
+        }
+
+        .comment { color: #6c757d; font-style: italic; }
+        .keyword { color: #d63384; }
+        .function { color: #0d6efd; }
+        .control { color: #6610f2; }
+
+        .node-circle {
+            fill: var(--node-fill);
+            stroke: var(--node-stroke);
+            stroke-width: 2px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .node-circle.highlight {
+            stroke: var(--accent-color);
+            stroke-width: 4px;
+            r: 28;
+        }
+
+        .node-text {
+            fill: var(--node-text);
+            font-size: 11px;
+            text-anchor: middle;
+            pointer-events: none;
+            font-weight: 600;
+        }
+
+        .edge {
+            stroke: #adb5bd;
+            stroke-width: 1.5px;
+            fill: none;
+            transition: all 0.3s;
+        }
+
+        #controls {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 10px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        button {
+            background: var(--accent-color);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        button:hover { background: #0b5ed7; }
+        button:disabled { background: #6c757d; cursor: not-allowed; }
+
+        #status {
+            font-weight: 500;
+            color: var(--accent-color);
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="visualization-container">
+        <div id="header">
+            <h1>Chess MCTS Visualizer</h1>
+        </div>
+        
+        <div id="tree-area">
+            <svg id="tree-svg"></svg>
+            <div id="controls">
+                <button id="step-btn">Next Step</button>
+                <button id="reset-btn" style="background: #6c757d;">Reset</button>
+                <span id="status">Ready</span>
+            </div>
+        </div>
+
+        <div id="explanation">
+            <strong>Debugger Guide:</strong> Watch the variables panel on the right. 
+            <code>current_node</code> moves down during Selection. 
+            <code>leaf_node</code> is the new node created in Expansion. 
+            <code>game_result</code> is the random outcome (1=Win, 0=Loss) from Simulation.
+        </div>
+    </div>
+
+    <div id="sidebar">
+        <div id="code-container">
+<div class="code-line" id="line-1"><span class="keyword">def</span> <span class="function">run_mcts_flow</span>(current_board, time_limit):</div>
+<div class="code-line" id="line-3">    root_node = <span class="function">create_starting_circle</span>(current_board)</div>
+<div class="code-line" id="line-6">    <span class="control">while</span> <span class="function">timer_is_still_running</span>(time_limit):</div>
+<div class="code-line" id="line-9">        current_node = root_node</div>
+<div class="code-line" id="line-11">        <span class="comment"># --- PHASE 1: SELECTION ---</span></div>
+<div class="code-line" id="line-14">        <span class="control">while</span> <span class="function">all_moves_tested</span>(current_node):</div>
+<div class="code-line" id="line-17">            current_node = <span class="function">apply_ucb1_and_go_down</span>(current_node)</div>
+<div class="code-line" id="line-19">            <span class="control">if</span> <span class="function">game_is_over</span>(current_node): <span class="control">break</span></div>
+<div class="code-line" id="line-22">        <span class="comment"># --- PHASE 2: EXPANSION ---</span></div>
+<div class="code-line" id="line-25">        <span class="control">if</span> <span class="keyword">not</span> <span class="function">game_is_over</span>(current_node):</div>
+<div class="code-line" id="line-26">            leaf_node = <span class="function">pick_untested_move</span>(current_node)</div>
+<div class="code-line" id="line-28">        <span class="control">else</span>: leaf_node = current_node</div>
+<div class="code-line" id="line-30">        <span class="comment"># --- PHASE 3: SIMULATION ---</span></div>
+<div class="code-line" id="line-33">        game_result = <span class="function">play_random_game</span>(leaf_node)</div>
+<div class="code-line" id="line-35">        <span class="comment"># --- PHASE 4: BACKPROPAGATION ---</span></div>
+<div class="code-line" id="line-38">        <span class="function">climb_up_and_add_result</span>(leaf_node, game_result)</div>
+<div class="code-line" id="line-40">    <span class="comment"># --- FINAL CHOICE ---</span></div>
+<div class="code-line" id="line-43">    best_move = <span class="function">highest_visit_child</span>(root_node)</div>
+<div class="code-line" id="line-44">    <span class="control">return</span> best_move</div>
+        </div>
+        
+        <div id="debugger-panel">
+            <div class="debugger-header">Local Variables</div>
+            <div id="var-root" class="variable-item"><span class="var-name">root_node:</span><span class="var-value"></span></div>
+            <div id="var-current" class="variable-item"><span class="var-name">current_node:</span><span class="var-value"></span></div>
+            <div id="var-leaf" class="variable-item"><span class="var-name">leaf_node:</span><span class="var-value"></span></div>
+            <div id="var-result" class="variable-item"><span class="var-name">game_result:</span><span class="var-value"></span></div>
+            
+            <div class="debugger-header" style="margin-top:20px">System State</div>
+            <div id="var-nodes" class="variable-item"><span class="var-name">total_nodes:</span><span class="var-value"></span></div>
+            <div id="var-phase" class="variable-item"><span class="var-name">active_phase:</span><span class="var-value"></span></div>
+        </div>
+    </div>
+
+    <script>
+        const svg = document.getElementById('tree-svg');
+        const stepBtn = document.getElementById('step-btn');
+        const resetBtn = document.getElementById('reset-btn');
+        const statusText = document.getElementById('status');
+        
+        const MAX_NODES = 15;
+        const NODE_RADIUS = 22;
+        const VERTICAL_SPACING = 70;
+        
+        let nodes = [];
+        let root = null;
+        let nodeIdCounter = 0;
+        let currentExecutionState = 'START_LOOP';
+        let activeNode = null;
+        let leafNodeVar = null;
+        let path = [];
+        let totalNodes = 0;
+        let currentResult = null;
+
+        class MCTSNode {
+            constructor(parent = null) {
+                this.id = nodeIdCounter++;
+                this.parent = parent;
+                this.children = [];
+                this.wins = 0;
+                this.visits = 0;
+                this.untriedMoves = [0, 1, 2].sort(() => Math.random() - 0.5); 
+                this.x = 0;
+                this.y = 0;
+            }
+            get score() { return `${this.wins}/${this.visits}`; }
+            isFullyExpanded() { return this.untriedMoves.length === 0; }
+            getUCB1(totalVisits) {
+                if (this.visits === 0) return Infinity;
+                return (this.wins / this.visits) + 1.41 * Math.sqrt(Math.log(totalVisits) / this.visits);
+            }
+            toString() { return `Node(id=${this.id}, score=${this.score})`; }
+        }
+
+        function updateDebugger() {
+            const setVar = (id, val) => {
+                const el = document.querySelector(`#${id} .var-value`);
+                if (val === null || val === undefined) {
+                    el.innerHTML = '<span class="var-null">null</span>';
+                } else {
+                    el.innerText = val;
+                }
+            };
+
+            setVar('var-root', root ? root.toString() : null);
+            
+            // Map currentExecutionState to pseudo-code variables
+            let currentVar = null;
+            if (['SELECTION', 'EXPANSION'].includes(currentExecutionState)) {
+                currentVar = activeNode ? activeNode.toString() : null;
+            } else if (currentExecutionState === 'START_LOOP') {
+                currentVar = root ? root.toString() : null;
+            }
+            setVar('var-current', currentVar);
+
+            setVar('var-leaf', leafNodeVar ? leafNodeVar.toString() : null);
+            setVar('var-result', currentResult !== null ? currentResult : null);
+            setVar('var-nodes', totalNodes);
+            setVar('var-phase', currentExecutionState);
+        }
+
+        function init() {
+            svg.innerHTML = '';
+            nodes = [];
+            nodeIdCounter = 0;
+            totalNodes = 1;
+            root = new MCTSNode();
+            nodes.push(root);
+            currentExecutionState = 'START_LOOP';
+            activeNode = root;
+            leafNodeVar = null;
+            currentResult = null;
+            stepBtn.disabled = false;
+            statusText.innerText = "Initialized root node.";
+            updateCodeHighlight([1, 3]);
+            layoutNodes(root, 0, 0, svg.clientWidth || window.innerWidth - 420);
+            render();
+            updateDebugger();
+        }
+
+        function updateCodeHighlight(lines) {
+            document.querySelectorAll('.code-line').forEach(l => l.classList.remove('active'));
+            lines.forEach(line => {
+                const el = document.getElementById(`line-${line}`);
+                if (el) el.classList.add('active');
+            });
+        }
+
+        function render() {
+            svg.innerHTML = '';
+            nodes.forEach(node => {
+                node.children.forEach(child => {
+                    const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                    line.setAttribute("x1", node.x); line.setAttribute("y1", node.y);
+                    line.setAttribute("x2", child.x); line.setAttribute("y2", child.y);
+                    line.setAttribute("class", "edge");
+                    svg.appendChild(line);
+                });
+            });
+
+            nodes.forEach(node => {
+                const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+                const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                circle.setAttribute("cx", node.x); circle.setAttribute("cy", node.y);
+                circle.setAttribute("r", NODE_RADIUS);
+                circle.setAttribute("class", "node-circle" + (node === activeNode ? " highlight" : ""));
+                
+                const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                text.setAttribute("x", node.x); text.setAttribute("y", node.y + 4);
+                text.setAttribute("class", "node-text");
+                text.textContent = node.score;
+                
+                g.appendChild(circle);
+                g.appendChild(text);
+                svg.appendChild(g);
+            });
+        }
+
+        function layoutNodes(node, depth, left, right) {
+            node.y = 40 + depth * VERTICAL_SPACING;
+            node.x = (left + right) / 2;
+            const width = (right - left);
+            if (node.children.length > 0) {
+                const step = width / node.children.length;
+                node.children.forEach((child, i) => {
+                    layoutNodes(child, depth + 1, left + i * step, left + (i + 1) * step);
+                });
+            }
+        }
+
+        function step() {
+            if (totalNodes >= MAX_NODES && currentExecutionState === 'START_LOOP') {
+                currentExecutionState = 'FINALIZE';
+            }
+
+            switch (currentExecutionState) {
+                case 'START_LOOP':
+                    activeNode = root;
+                    leafNodeVar = null;
+                    currentResult = null;
+                    path = [root];
+                    statusText.innerText = "New iteration: Starting at root.";
+                    updateCodeHighlight([6, 9]);
+                    currentExecutionState = 'SELECTION';
+                    break;
+
+                case 'SELECTION':
+                    updateCodeHighlight([14]);
+                    if (activeNode.isFullyExpanded() && activeNode.children.length > 0) {
+                        statusText.innerText = "Selecting via UCB1...";
+                        updateCodeHighlight([17]);
+                        let bestChild = activeNode.children[0];
+                        let bestVal = -Infinity;
+                        activeNode.children.forEach(c => {
+                            let val = c.getUCB1(activeNode.visits);
+                            if (val > bestVal) { bestVal = val; bestChild = c; }
+                        });
+                        activeNode = bestChild;
+                        path.push(activeNode);
+                    } else {
+                        statusText.innerText = "Found expansion point.";
+                        currentExecutionState = 'EXPANSION';
+                    }
+                    break;
+
+                case 'EXPANSION':
+                    updateCodeHighlight([25, 26]);
+                    if (activeNode.untriedMoves.length > 0 && totalNodes < MAX_NODES) {
+                        activeNode.untriedMoves.pop();
+                        const newNode = new MCTSNode(activeNode);
+                        activeNode.children.push(newNode);
+                        nodes.push(newNode);
+                        totalNodes++;
+                        leafNodeVar = newNode;
+                        activeNode = newNode;
+                        path.push(activeNode);
+                        statusText.innerText = "Expanding: Created leaf_node.";
+                        layoutNodes(root, 0, 0, svg.clientWidth);
+                    } else {
+                        leafNodeVar = activeNode;
+                    }
+                    currentExecutionState = 'SIMULATION';
+                    break;
+
+                case 'SIMULATION':
+                    updateCodeHighlight([33]);
+                    currentResult = Math.random() > 0.5 ? 1 : 0;
+                    statusText.innerText = `Simulation result = ${currentResult}`;
+                    currentExecutionState = 'BACKPROPAGATION';
+                    break;
+
+                case 'BACKPROPAGATION':
+                    updateCodeHighlight([38]);
+                    statusText.innerText = "Backpropagating wins/visits...";
+                    path.forEach(n => {
+                        n.visits++;
+                        n.wins += currentResult;
+                    });
+                    activeNode = root; 
+                    currentExecutionState = 'START_LOOP';
+                    break;
+
+                case 'FINALIZE':
+                    updateCodeHighlight([43, 44]);
+                    let best = root.children[0];
+                    root.children.forEach(c => { if (c.visits > best.visits) best = c; });
+                    activeNode = best;
+                    statusText.innerText = "Time's up! Best move identified.";
+                    stepBtn.disabled = true;
+                    break;
+            }
+            render();
+            updateDebugger();
+        }
+
+        stepBtn.addEventListener('click', step);
+        resetBtn.addEventListener('click', init);
+        window.addEventListener('resize', () => {
+            layoutNodes(root, 0, 0, svg.clientWidth);
+            render();
+        });
+
+        setTimeout(init, 100);
+    </script>
+</body>
+</html>

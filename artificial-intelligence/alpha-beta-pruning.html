@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alpha-Beta Pruning Visualization</title>
+    <style>
+        :root {
+            --max-color: #28a745; /* Green */
+            --min-color: #dc3545; /* Red */
+            --pruned-color: #adb5bd; /* Grey */
+            --bg-color: #f8f9fa;
+            --text-color: #212529;
+            --border-color: #dee2e6;
+        }
+
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        #header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        #visualization-container {
+            flex: 1;
+            width: 100%;
+            max-width: 1000px;
+            background: white;
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            position: relative;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #tree-svg {
+            flex: 1;
+            width: 100%;
+            height: 100%;
+        }
+
+        #controls {
+            padding: 20px;
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            background: #fff;
+            border-bottom-left-radius: 12px;
+            border-bottom-right-radius: 12px;
+        }
+
+        button {
+            padding: 10px 20px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            background: #fff;
+            transition: all 0.2s;
+        }
+
+        button:hover:not(:disabled) {
+            background: #e9ecef;
+            border-color: #ced4da;
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        #next-btn {
+            background: #0d6efd;
+            color: white;
+            border: none;
+        }
+
+        #next-btn:hover:not(:disabled) {
+            background: #0b5ed7;
+        }
+
+        #status-panel {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 10px 15px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            font-size: 0.9rem;
+            max-width: 250px;
+            pointer-events: none;
+        }
+
+        /* SVG Styles */
+        .node-triangle-max { fill: var(--max-color); stroke: #1e7e34; stroke-width: 2px; }
+        .node-triangle-min { fill: var(--min-color); stroke: #bd2130; stroke-width: 2px; }
+        .node-circle { fill: #fff; stroke: #495057; stroke-width: 2px; }
+        
+        .pruned { fill: var(--pruned-color) !important; stroke: #6c757d !important; opacity: 0.6; }
+        .edge { stroke: #ced4da; stroke-width: 2px; transition: stroke 0.3s; }
+        .edge.active { stroke: #0d6efd; stroke-width: 3px; }
+        .edge.pruned-edge { stroke: var(--pruned-color); stroke-dasharray: 4; opacity: 0.6; }
+
+        .node-label { font-size: 14px; font-weight: bold; text-anchor: middle; fill: #212529; }
+        .ab-label { font-size: 12px; fill: #6c757d; font-family: monospace; }
+        .current-highlight { stroke: #0d6efd; stroke-width: 4px; }
+    </style>
+</head>
+<body>
+
+    <div id="header">
+        <h1>Alpha-Beta Pruning</h1>
+        <p>Interactive step-by-step visualization of the minimax search with pruning.</p>
+    </div>
+
+    <div id="visualization-container">
+        <div id="status-panel">
+            <div id="step-desc">Click "Next Step" to begin simulation.</div>
+        </div>
+        <svg id="tree-svg"></svg>
+        <div id="controls">
+            <button id="reset-btn">New Random Values</button>
+            <button id="prev-btn" disabled>Prev Step</button>
+            <button id="next-btn">Next Step</button>
+        </div>
+    </div>
+
+    <script>
+        const svg = document.getElementById('tree-svg');
+        const nextBtn = document.getElementById('next-btn');
+        const prevBtn = document.getElementById('prev-btn');
+        const resetBtn = document.getElementById('reset-btn');
+        const stepDesc = document.getElementById('step-desc');
+
+        let nodes = [];
+        let edges = [];
+        let steps = [];
+        let currentStepIndex = -1;
+
+        class Node {
+            constructor(id, type, depth, x, y) {
+                this.id = id;
+                this.type = type; // 'MAX', 'MIN', 'LEAF'
+                this.depth = depth;
+                this.x = x;
+                this.y = y;
+                this.children = [];
+                this.parent = null;
+                this.value = null;
+                this.alpha = -Infinity;
+                this.beta = Infinity;
+                this.isPruned = false;
+            }
+        }
+
+        function createTree() {
+            nodes = [];
+            edges = [];
+            const width = svg.clientWidth || 1000;
+            const height = svg.clientHeight || 500;
+            const vGap = height / 4;
+
+            // Root (MAX)
+            const root = new Node(0, 'MAX', 0, width / 2, vGap * 0.5);
+            nodes.push(root);
+
+            // Layer 1 (MIN)
+            for (let i = 0; i < 2; i++) {
+                const x = width * (i + 1) / 3;
+                const node = new Node(nodes.length, 'MIN', 1, x, vGap * 1.5);
+                node.parent = root;
+                root.children.push(node);
+                nodes.push(node);
+                edges.push({ from: root, to: node });
+            }
+
+            // Layer 2 (MAX)
+            root.children.forEach((parent, i) => {
+                for (let j = 0; j < 2; j++) {
+                    const offset = (j === 0 ? -1 : 1) * (width / 8);
+                    const node = new Node(nodes.length, 'MAX', 2, parent.x + offset, vGap * 2.5);
+                    node.parent = parent;
+                    parent.children.push(node);
+                    nodes.push(node);
+                    edges.push({ from: parent, to: node });
+                }
+            });
+
+            // Layer 3 (LEAF)
+            nodes.filter(n => n.depth === 2).forEach((parent, i) => {
+                for (let j = 0; j < 2; j++) {
+                    const offset = (j === 0 ? -1 : 1) * (width / 20);
+                    const node = new Node(nodes.length, 'LEAF', 3, parent.x + offset, vGap * 3.5);
+                    node.parent = parent;
+                    node.value = Math.floor(Math.random() * 20); // Random integer
+                    parent.children.push(node);
+                    nodes.push(node);
+                    edges.push({ from: parent, to: node });
+                }
+            });
+        }
+
+        function generateSteps() {
+            steps = [];
+            const root = nodes[0];
+            
+            function ab(node, alpha, beta) {
+                // Record state before processing
+                steps.push({
+                    nodeId: node.id,
+                    alpha,
+                    beta,
+                    value: node.value,
+                    type: 'VISIT',
+                    desc: `Visiting node ${node.id} (${node.type})`
+                });
+
+                if (node.type === 'LEAF') {
+                    node.alpha = alpha;
+                    node.beta = beta;
+                    steps.push({
+                        nodeId: node.id,
+                        alpha,
+                        beta,
+                        value: node.value,
+                        type: 'RETURN',
+                        desc: `Leaf node value: ${node.value}`
+                    });
+                    return node.value;
+                }
+
+                let v = (node.type === 'MAX') ? -Infinity : Infinity;
+                node.alpha = alpha;
+                node.beta = beta;
+
+                for (let child of node.children) {
+                    if (node.isPruned) break;
+
+                    const childVal = ab(child, alpha, beta);
+                    
+                    if (node.type === 'MAX') {
+                        v = Math.max(v, childVal);
+                        alpha = Math.max(alpha, v);
+                    } else {
+                        v = Math.min(v, childVal);
+                        beta = Math.min(beta, v);
+                    }
+
+                    node.value = v;
+                    node.alpha = alpha;
+                    node.beta = beta;
+
+                    steps.push({
+                        nodeId: node.id,
+                        alpha,
+                        beta,
+                        value: v,
+                        type: 'UPDATE',
+                        desc: `Updating ${node.type} node ${node.id} with child value ${childVal}. α=${alpha}, β=${beta}`
+                    });
+
+                    if (beta <= alpha) {
+                        // Pruning
+                        prune(child, node);
+                        steps.push({
+                            nodeId: node.id,
+                            alpha,
+                            beta,
+                            value: v,
+                            type: 'PRUNE',
+                            desc: `Pruning remaining branches! β (${beta}) ≤ α (${alpha})`
+                        });
+                        break;
+                    }
+                }
+                return v;
+            }
+
+            function prune(afterChild, parent) {
+                let found = false;
+                for (let child of parent.children) {
+                    if (found) {
+                        markPruned(child);
+                    }
+                    if (child === afterChild) found = true;
+                }
+            }
+
+            function markPruned(node) {
+                node.isPruned = true;
+                node.children.forEach(markPruned);
+            }
+
+            // Reset states before simulation
+            nodes.forEach(n => {
+                n.isPruned = false;
+                if (n.type !== 'LEAF') n.value = null;
+                n.alpha = -Infinity;
+                n.beta = Infinity;
+            });
+
+            ab(root, -Infinity, Infinity);
+        }
+
+        function render() {
+            svg.innerHTML = '';
+            
+            // Render Edges
+            edges.forEach(edge => {
+                const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                line.setAttribute("x1", edge.from.x);
+                line.setAttribute("y1", edge.from.y);
+                line.setAttribute("x2", edge.to.x);
+                line.setAttribute("y2", edge.to.y);
+                line.setAttribute("class", "edge");
+                line.setAttribute("id", `edge-${edge.from.id}-${edge.to.id}`);
+                svg.appendChild(line);
+            });
+
+            // Render Nodes
+            nodes.forEach(node => {
+                const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+                g.setAttribute("id", `node-group-${node.id}`);
+
+                if (node.type === 'LEAF') {
+                    const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                    circle.setAttribute("cx", node.x);
+                    circle.setAttribute("cy", node.y);
+                    circle.setAttribute("r", 20);
+                    circle.setAttribute("class", "node-circle");
+                    circle.setAttribute("id", `node-${node.id}`);
+                    g.appendChild(circle);
+
+                    const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                    text.setAttribute("x", node.x);
+                    text.setAttribute("y", node.y + 5);
+                    text.setAttribute("class", "node-label");
+                    text.textContent = node.value;
+                    g.appendChild(text);
+                } else {
+                    const poly = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
+                    const size = 25;
+                    let points = "";
+                    if (node.type === 'MAX') {
+                        points = `${node.x},${node.y-size} ${node.x-size},${node.y+size} ${node.x+size},${node.y+size}`;
+                        poly.setAttribute("class", "node-triangle-max");
+                    } else {
+                        points = `${node.x},${node.y+size} ${node.x-size},${node.y-size} ${node.x+size},${node.y-size}`;
+                        poly.setAttribute("class", "node-triangle-min");
+                    }
+                    poly.setAttribute("points", points);
+                    poly.setAttribute("id", `node-${node.id}`);
+                    g.appendChild(poly);
+
+                    const valText = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                    valText.setAttribute("x", node.x);
+                    valText.setAttribute("y", node.type === 'MAX' ? node.y + 12 : node.y - 4);
+                    valText.setAttribute("class", "node-label");
+                    valText.setAttribute("id", `val-${node.id}`);
+                    valText.textContent = "";
+                    g.appendChild(valText);
+
+                    const abText = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                    abText.setAttribute("x", node.x + 35);
+                    abText.setAttribute("y", node.y);
+                    abText.setAttribute("class", "ab-label");
+                    abText.setAttribute("id", `ab-${node.id}`);
+                    abText.textContent = "[-∞, ∞]";
+                    g.appendChild(abText);
+                }
+                svg.appendChild(g);
+            });
+        }
+
+        function updateUI() {
+            // Reset visuals
+            nodes.forEach(n => {
+                const el = document.getElementById(`node-${n.id}`);
+                el.classList.remove('pruned', 'current-highlight');
+                if (n.type !== 'LEAF') {
+                    document.getElementById(`val-${n.id}`).textContent = "";
+                    document.getElementById(`ab-${n.id}`).textContent = "[-∞, ∞]";
+                }
+            });
+            edges.forEach(e => {
+                const el = document.getElementById(`edge-${e.from.id}-${e.to.id}`);
+                el.classList.remove('pruned-edge', 'active');
+            });
+
+            // Apply steps up to current index
+            for (let i = 0; i <= currentStepIndex; i++) {
+                const step = steps[i];
+                const node = nodes[step.nodeId];
+                
+                if (step.type === 'PRUNE') {
+                    // Logic for pruning visual is handled by finding children not visited
+                }
+
+                if (node.type !== 'LEAF') {
+                    const valEl = document.getElementById(`val-${node.id}`);
+                    valEl.textContent = step.value === -Infinity || step.value === Infinity ? "" : step.value;
+                    const abEl = document.getElementById(`ab-${node.id}`);
+                    const aStr = step.alpha === -Infinity ? "-∞" : step.alpha;
+                    const bStr = step.beta === Infinity ? "∞" : step.beta;
+                    abText = `[${aStr}, ${bStr}]`;
+                    abEl.textContent = abText;
+                }
+
+                if (i === currentStepIndex) {
+                    document.getElementById(`node-${node.id}`).classList.add('current-highlight');
+                    stepDesc.textContent = step.desc;
+                    
+                    // Highlight edge to parent
+                    if (node.parent) {
+                        document.getElementById(`edge-${node.parent.id}-${node.id}`).classList.add('active');
+                    }
+                }
+            }
+
+            // Mark Pruned Nodes and Edges
+            // A node is pruned if it's never visited in the steps up to now but its parent has hit a prune step
+            const visitedIds = new Set(steps.slice(0, currentStepIndex + 1).map(s => s.nodeId));
+            
+            // Simple logic: if a node has a PRUNE step, its siblings to the right (and their subtrees) are pruned
+            for (let i = 0; i <= currentStepIndex; i++) {
+                if (steps[i].type === 'PRUNE') {
+                    const pNode = nodes[steps[i].nodeId];
+                    let foundCurrent = false;
+                    // This is a bit complex for a single pass, let's use the pre-calculated isPruned
+                    // But isPruned is global. Let's find which branch triggered it.
+                }
+            }
+
+            // Accurate pruning check: If a node has not been visited, and its parent has completed or pruned
+            nodes.forEach(n => {
+                if (n.id === 0) return;
+                let parentVisited = false;
+                let selfVisited = visitedIds.has(n.id);
+                
+                // Find if any step before currentStepIndex was a PRUNE at an ancestor that affects this node
+                let pruned = false;
+                for(let i=0; i<=currentStepIndex; i++) {
+                    const s = steps[i];
+                    if (s.type === 'PRUNE') {
+                        const pruneParent = nodes[s.nodeId];
+                        // check if n is a descendant of pruneParent and to the right of the trigger
+                        // To simplify: we pre-calculated which nodes ARE pruned in generateSteps.
+                        // We only show them as pruned if the PRUNE step has occurred.
+                    }
+                }
+            });
+
+            // Using the simple pre-calculated approach for the final state, 
+            // but filtered by the current step
+            const activePrunes = steps.slice(0, currentStepIndex + 1).filter(s => s.type === 'PRUNE');
+            const prunedNodeIds = new Set();
+            
+            activePrunes.forEach(s => {
+                const parent = nodes[s.nodeId];
+                let triggerFound = false;
+                // find which child triggered it - the one visited just before the prune step
+                const triggerNodeId = steps[steps.indexOf(s) - 1].nodeId;
+                
+                let startPruning = false;
+                parent.children.forEach(child => {
+                    if (startPruning) {
+                        const mark = (node) => {
+                            prunedNodeIds.add(node.id);
+                            node.children.forEach(mark);
+                        }
+                        mark(child);
+                    }
+                    if (child.id === triggerNodeId) startPruning = true;
+                });
+            });
+
+            prunedNodeIds.forEach(id => {
+                document.getElementById(`node-${id}`).classList.add('pruned');
+                const node = nodes[id];
+                if (node.parent) {
+                    document.getElementById(`edge-${node.parent.id}-${node.id}`).classList.add('pruned-edge');
+                }
+            });
+
+            prevBtn.disabled = currentStepIndex <= -1;
+            nextBtn.disabled = currentStepIndex >= steps.length - 1;
+        }
+
+        nextBtn.addEventListener('click', () => {
+            currentStepIndex++;
+            updateUI();
+        });
+
+        prevBtn.addEventListener('click', () => {
+            currentStepIndex--;
+            updateUI();
+        });
+
+        resetBtn.addEventListener('click', () => {
+            createTree();
+            generateSteps();
+            currentStepIndex = -1;
+            render();
+            updateUI();
+            stepDesc.textContent = "Click 'Next Step' to begin simulation.";
+        });
+
+        window.addEventListener('resize', () => {
+            createTree();
+            render();
+            updateUI();
+        });
+
+        // Initialize
+        setTimeout(() => {
+            createTree();
+            generateSteps();
+            render();
+            updateUI();
+        }, 100);
+
+    </script>
+</body>
+</html>
