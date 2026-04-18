@@ -1,0 +1,1731 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Moore vs Mealy: Why Notation Follows the Hardware</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap');
+
+:root {
+    --moore: #58a6ff;
+    --moore-dim: #1a3a5c;
+    --moore-glow: rgba(88, 166, 255, 0.5);
+    --mealy: #ff7b72;
+    --mealy-dim: #5c2a27;
+    --mealy-glow: rgba(255, 123, 114, 0.5);
+    --bypass: #ffd740;
+    --bypass-glow: rgba(255, 215, 64, 0.6);
+    --nsl-color: #7c4dff;
+    --ff-color: #e040fb;
+    --ol-color: #69f0ae;
+    --bg: #0d1117;
+    --surface: #161b22;
+    --surface2: #1c2333;
+    --border: #30363d;
+    --text: #c9d1d9;
+    --text-bright: #f0f6fc;
+    --text-dim: #8b949e;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    overflow-x: hidden;
+    line-height: 1.6;
+}
+
+.fira { font-family: 'Fira Code', monospace; }
+
+/* Hero */
+.hero {
+    text-align: center;
+    padding: 3rem 1.5rem 2rem;
+    background: linear-gradient(180deg, #0d1117 0%, #111827 100%);
+    border-bottom: 1px solid var(--border);
+}
+.hero h1 {
+    font-size: 2.6rem;
+    font-weight: 800;
+    background: linear-gradient(135deg, var(--moore), #c084fc, var(--mealy));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 0.5rem;
+    letter-spacing: -0.02em;
+}
+.hero .subtitle {
+    font-size: 1.15rem;
+    color: var(--text-dim);
+    font-weight: 400;
+}
+
+/* Question Block */
+.question-block {
+    max-width: 860px;
+    margin: 2rem auto;
+    padding: 1.5rem 2rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--bypass);
+    border-radius: 0.75rem;
+}
+.question-block .q {
+    font-style: italic;
+    color: var(--bypass);
+    font-size: 1.05rem;
+    margin-bottom: 0.75rem;
+}
+.question-block .a {
+    color: var(--text);
+    font-size: 0.95rem;
+}
+.question-block .a strong { color: var(--text-bright); }
+
+/* Container */
+.container {
+    max-width: 1440px;
+    margin: 0 auto;
+    padding: 0 1.5rem;
+}
+
+/* Machine Panels */
+.machines-row {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    gap: 0;
+    margin-top: 2rem;
+}
+.machine-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 1rem;
+    overflow: hidden;
+}
+.machine-panel .panel-header {
+    padding: 1.25rem 1.5rem 0.75rem;
+    text-align: center;
+}
+.machine-panel .panel-header h2 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-bottom: 0.25rem;
+}
+.moore-panel .panel-header h2 { color: var(--moore); }
+.mealy-panel .panel-header h2 { color: var(--mealy); }
+.machine-panel .panel-header .formula {
+    font-family: 'Fira Code', monospace;
+    font-size: 0.9rem;
+    color: var(--text-dim);
+}
+
+.vs-divider {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 1rem;
+}
+.vs-badge {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: 0.9rem;
+    color: var(--text-dim);
+}
+
+/* SVG Diagrams */
+.diagram-area {
+    padding: 0.5rem 1rem;
+}
+.diagram-area svg {
+    width: 100%;
+    height: auto;
+    display: block;
+}
+
+/* Connection Legend */
+.connection-legend {
+    display: flex;
+    justify-content: center;
+    gap: 1.5rem;
+    padding: 0.5rem 1rem;
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    border-top: 1px dashed var(--border);
+    border-bottom: 1px dashed var(--border);
+    margin: 0 1rem;
+    flex-wrap: wrap;
+}
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+.legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+}
+.legend-line {
+    width: 16px;
+    height: 3px;
+    border-radius: 2px;
+}
+
+/* State Diagram Styles */
+.state-circle {
+    fill: var(--surface2);
+    stroke: var(--border);
+    stroke-width: 2.5;
+    transition: all 0.4s ease;
+    cursor: pointer;
+}
+.moore-panel .state-circle.active {
+    fill: var(--moore-dim);
+    stroke: var(--moore);
+    stroke-width: 3.5;
+    filter: drop-shadow(0 0 10px var(--moore-glow));
+}
+.mealy-panel .state-circle.active {
+    fill: var(--mealy-dim);
+    stroke: var(--mealy);
+    stroke-width: 3.5;
+    filter: drop-shadow(0 0 10px var(--mealy-glow));
+}
+
+.state-label {
+    fill: var(--text-bright);
+    font-family: 'Fira Code', monospace;
+    font-size: 17px;
+    font-weight: 600;
+    text-anchor: middle;
+    dominant-baseline: central;
+    pointer-events: none;
+    user-select: none;
+}
+.output-label {
+    fill: var(--ol-color);
+    font-family: 'Fira Code', monospace;
+    font-size: 11px;
+    font-weight: 500;
+    text-anchor: middle;
+    pointer-events: none;
+    user-select: none;
+    opacity: 0.9;
+}
+.output-label.active-output {
+    fill: #b9f6ca;
+    font-weight: 700;
+    filter: drop-shadow(0 0 4px rgba(105, 240, 174, 0.6));
+}
+
+.trans-path {
+    fill: none;
+    stroke: var(--text-dim);
+    stroke-width: 2;
+    transition: all 0.35s ease;
+}
+.trans-path.active-trans {
+    stroke-width: 3.5;
+    filter: drop-shadow(0 0 6px currentColor);
+}
+.moore-panel .trans-path.active-trans { stroke: var(--moore); }
+.mealy-panel .trans-path.active-trans { stroke: var(--mealy); }
+.trans-path.preview-trans {
+    stroke-width: 2.5;
+    opacity: 0.8;
+}
+.moore-panel .trans-path.preview-trans { stroke: rgba(88, 166, 255, 0.45); }
+.mealy-panel .trans-path.preview-trans { stroke: rgba(255, 123, 114, 0.45); }
+
+.trans-label {
+    font-family: 'Fira Code', monospace;
+    font-size: 12px;
+    font-weight: 500;
+    fill: var(--text-dim);
+    text-anchor: middle;
+    dominant-baseline: central;
+    pointer-events: none;
+    user-select: none;
+    transition: all 0.3s ease;
+}
+.trans-label.active-trans-label {
+    font-weight: 700;
+    font-size: 13px;
+}
+.moore-panel .trans-label.active-trans-label { fill: var(--moore); }
+.mealy-panel .trans-label.active-trans-label { fill: var(--mealy); }
+.trans-label.preview-trans-label { opacity: 0.7; }
+.moore-panel .trans-label.preview-trans-label { fill: rgba(88, 166, 255, 0.6); }
+.mealy-panel .trans-label.preview-trans-label { fill: rgba(255, 123, 114, 0.6); }
+
+/* Hardware Diagram Styles */
+.hw-block {
+    rx: 6;
+    ry: 6;
+    fill: var(--surface2);
+    stroke: var(--border);
+    stroke-width: 2;
+    transition: all 0.4s ease;
+}
+.hw-block.hw-active {
+    stroke-width: 2.5;
+}
+.hw-block.hw-nsl.hw-active { stroke: var(--nsl-color); fill: rgba(124, 77, 255, 0.12); filter: drop-shadow(0 0 6px rgba(124, 77, 255, 0.4)); }
+.hw-block.hw-ff.hw-active  { stroke: var(--ff-color);  fill: rgba(224, 64, 251, 0.12);  filter: drop-shadow(0 0 6px rgba(224, 64, 251, 0.4)); }
+.hw-block.hw-ol.hw-active  { stroke: var(--ol-color);  fill: rgba(105, 240, 174, 0.10); filter: drop-shadow(0 0 6px rgba(105, 240, 174, 0.4)); }
+
+.hw-wire {
+    fill: none;
+    stroke: var(--border);
+    stroke-width: 2;
+    transition: all 0.35s ease;
+}
+.hw-wire.hw-wire-active {
+    stroke: var(--text);
+    stroke-width: 2.5;
+    filter: drop-shadow(0 0 4px rgba(255,255,255,0.2));
+}
+
+.bypass-wire {
+    fill: none;
+    stroke: var(--bypass);
+    stroke-width: 2.5;
+    stroke-dasharray: 8 5;
+    opacity: 0.35;
+    transition: opacity 0.35s ease;
+}
+.bypass-wire.bypass-active {
+    opacity: 1;
+    stroke-width: 3;
+    filter: drop-shadow(0 0 8px var(--bypass-glow));
+    animation: dashFlow 0.8s linear infinite;
+}
+@keyframes dashFlow {
+    to { stroke-dashoffset: -13; }
+}
+
+.hw-label {
+    font-family: 'Inter', sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    fill: var(--text);
+    text-anchor: middle;
+    dominant-baseline: central;
+    pointer-events: none;
+    user-select: none;
+}
+.hw-sublabel {
+    font-size: 9px;
+    font-weight: 400;
+    fill: var(--text-dim);
+    text-anchor: middle;
+    pointer-events: none;
+    user-select: none;
+}
+.hw-io-label {
+    font-family: 'Fira Code', monospace;
+    font-size: 12px;
+    font-weight: 600;
+    fill: var(--text-dim);
+    text-anchor: middle;
+    dominant-baseline: central;
+    pointer-events: none;
+}
+
+/* Simulation Section */
+.sim-section {
+    margin-top: 2.5rem;
+    padding: 2rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 1rem;
+}
+.sim-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--text-bright);
+    margin-bottom: 0.5rem;
+    text-align: center;
+}
+.sim-desc {
+    text-align: center;
+    font-size: 0.85rem;
+    color: var(--text-dim);
+    margin-bottom: 1.5rem;
+}
+
+.controls-row {
+    display: flex;
+    justify-content: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    margin-bottom: 1.5rem;
+}
+.ctrl-btn {
+    font-family: 'Fira Code', monospace;
+    font-size: 0.85rem;
+    font-weight: 600;
+    padding: 0.6rem 1.2rem;
+    border: 2px solid var(--border);
+    border-radius: 0.5rem;
+    background: var(--surface2);
+    color: var(--text);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    user-select: none;
+}
+.ctrl-btn:hover {
+    border-color: var(--text-dim);
+    background: #21262d;
+}
+.ctrl-btn:active {
+    transform: scale(0.96);
+}
+.ctrl-btn.input-btn.selected {
+    border-color: var(--bypass);
+    background: rgba(255, 215, 64, 0.1);
+    color: var(--bypass);
+    box-shadow: 0 0 12px rgba(255, 215, 64, 0.2);
+}
+.ctrl-btn.clock-btn {
+    border-color: var(--moore);
+    color: var(--moore);
+}
+.ctrl-btn.clock-btn:hover {
+    background: rgba(88, 166, 255, 0.1);
+    box-shadow: 0 0 12px rgba(88, 166, 255, 0.2);
+}
+.ctrl-btn.clock-btn:active {
+    box-shadow: 0 0 20px rgba(88, 166, 255, 0.4);
+}
+.ctrl-btn.reset-btn { border-color: var(--text-dim); }
+.ctrl-btn.demo-btn {
+    border-color: var(--ol-color);
+    color: var(--ol-color);
+}
+.ctrl-btn.demo-btn:hover {
+    background: rgba(105, 240, 174, 0.1);
+}
+.ctrl-btn.demo-btn.running {
+    border-color: var(--mealy);
+    color: var(--mealy);
+    animation: pulse 1s ease-in-out infinite;
+}
+@keyframes pulse {
+    0%, 100% { box-shadow: 0 0 4px rgba(255,123,114,0.2); }
+    50% { box-shadow: 0 0 16px rgba(255,123,114,0.4); }
+}
+
+/* Status Row */
+.status-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+.status-card {
+    padding: 1rem 1.5rem;
+    border-radius: 0.75rem;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    text-align: center;
+}
+.status-card.moore-card { border-left: 3px solid var(--moore); }
+.status-card.mealy-card { border-left: 3px solid var(--mealy); }
+.status-card .sc-machine {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 0.5rem;
+}
+.moore-card .sc-machine { color: var(--moore); }
+.mealy-card .sc-machine { color: var(--mealy); }
+.status-card .sc-state {
+    font-family: 'Fira Code', monospace;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-bright);
+}
+.status-card .sc-output {
+    font-family: 'Fira Code', monospace;
+    font-size: 1.6rem;
+    font-weight: 700;
+    margin: 0.25rem 0;
+}
+.moore-card .sc-output { color: var(--moore); }
+.mealy-card .sc-output { color: var(--mealy); }
+.mealy-card .sc-output.live { color: var(--bypass); }
+.status-card .sc-note {
+    font-size: 0.72rem;
+    color: var(--text-dim);
+    font-style: italic;
+}
+.sc-note.flash {
+    color: var(--bypass);
+    font-weight: 600;
+    font-style: normal;
+    animation: flashNote 0.6s ease;
+}
+@keyframes flashNote {
+    0% { opacity: 0; transform: translateY(4px); }
+    100% { opacity: 1; transform: translateY(0); }
+}
+
+/* Timing Diagram */
+.timing-container {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 0.75rem;
+    padding: 1rem;
+    overflow-x: auto;
+}
+.timing-container canvas {
+    display: block;
+    min-width: 100%;
+}
+
+/* Insights */
+.insights-section {
+    margin-top: 2.5rem;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.25rem;
+    padding-bottom: 3rem;
+}
+.insight-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 1rem;
+    padding: 1.5rem;
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+.insight-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+}
+.insight-card .ic-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 0.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 1rem;
+    font-size: 1.2rem;
+}
+.insight-card h3 {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--text-bright);
+    margin-bottom: 0.5rem;
+}
+.insight-card p {
+    font-size: 0.85rem;
+    color: var(--text-dim);
+    line-height: 1.5;
+}
+
+/* Comparison Table */
+.comparison-section {
+    margin-bottom: 3rem;
+}
+.comparison-section h3 {
+    text-align: center;
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--text-bright);
+    margin-bottom: 1rem;
+}
+.comparison-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--surface);
+    border-radius: 0.75rem;
+    overflow: hidden;
+    border: 1px solid var(--border);
+}
+.comparison-table th {
+    padding: 0.75rem 1rem;
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    border-bottom: 1px solid var(--border);
+    text-align: left;
+}
+.comparison-table th:first-child { color: var(--text-dim); }
+.comparison-table th:nth-child(2) { color: var(--moore); }
+.comparison-table th:nth-child(3) { color: var(--mealy); }
+.comparison-table td {
+    padding: 0.6rem 1rem;
+    font-size: 0.85rem;
+    border-bottom: 1px solid var(--border);
+}
+.comparison-table tr:last-child td { border-bottom: none; }
+.comparison-table td:first-child { color: var(--text-dim); font-weight: 500; }
+
+/* Entrance Animations */
+@keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(24px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+.anim-in {
+    animation: fadeInUp 0.65s ease-out both;
+}
+.anim-d1 { animation-delay: 0.1s; }
+.anim-d2 { animation-delay: 0.2s; }
+.anim-d3 { animation-delay: 0.35s; }
+.anim-d4 { animation-delay: 0.5s; }
+.anim-d5 { animation-delay: 0.65s; }
+
+/* Responsive */
+@media (max-width: 900px) {
+    .machines-row {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+    .vs-divider { padding: 0.5rem 0; }
+    .vs-badge { width: 36px; height: 36px; font-size: 0.75rem; }
+    .status-row { grid-template-columns: 1fr; }
+    .insights-section { grid-template-columns: 1fr; }
+    .hero h1 { font-size: 1.8rem; }
+}
+
+/* Pulsing active state */
+@keyframes statePulse {
+    0%, 100% { filter: drop-shadow(0 0 8px var(--glow)); }
+    50% { filter: drop-shadow(0 0 16px var(--glow)); }
+}
+.moore-panel .state-circle.active { --glow: var(--moore-glow); animation: statePulse 2.5s ease-in-out infinite; }
+.mealy-panel .state-circle.active { --glow: var(--mealy-glow); animation: statePulse 2.5s ease-in-out infinite; }
+
+/* Start arrow */
+.start-arrow {
+    fill: none;
+    stroke: var(--text-dim);
+    stroke-width: 2;
+}
+
+/* Light Mode */
+body.light-mode {
+    --moore: #0969da;
+    --moore-dim: #dbeafe;
+    --moore-glow: rgba(9, 105, 218, 0.3);
+    --mealy: #cf222e;
+    --mealy-dim: #ffeef0;
+    --mealy-glow: rgba(207, 34, 46, 0.25);
+    --bypass: #7a5100;
+    --bypass-glow: rgba(122, 81, 0, 0.3);
+    --nsl-color: #5e35b1;
+    --ff-color: #7b1fa2;
+    --ol-color: #1b5e20;
+    --bg: #f6f8fa;
+    --surface: #ffffff;
+    --surface2: #eaeef2;
+    --border: #d0d7de;
+    --text: #1f2328;
+    --text-bright: #0d1117;
+    --text-dim: #57606a;
+}
+body.light-mode .hero {
+    background: linear-gradient(180deg, #f6f8fa 0%, #eaeef2 100%);
+}
+
+/* Mode toggle button */
+.mode-toggle {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    z-index: 50;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 2rem;
+    padding: 0.4rem 0.9rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    color: var(--text);
+    transition: all 0.2s ease;
+    box-shadow: 0 1px 6px rgba(0,0,0,0.15);
+    user-select: none;
+}
+.mode-toggle:hover {
+    border-color: var(--text-dim);
+    box-shadow: 0 2px 12px rgba(0,0,0,0.2);
+}
+</style>
+</head>
+<body>
+
+<!-- Mode Toggle -->
+<button class="mode-toggle" id="mode-toggle" onclick="toggleMode()">☀️ Light</button>
+
+<!-- Hero -->
+<header class="hero anim-in anim-d1">
+    <h1>Moore vs Mealy State Machines</h1>
+    <p class="subtitle">Why Diagram Notation Mirrors the Physical Hardware</p>
+</header>
+
+<!-- Question -->
+<div class="container">
+<div class="question-block anim-in anim-d2">
+    <p class="q">"Why does the Mealy machine label transitions as [input]/[output] instead of writing the output inside the state bubble?"</p>
+    <p class="a"><strong>Because the diagram notation maps directly to the physical wires.</strong> In a Moore machine, the output wire connects only from the flip-flops (memory), so we write it <em>inside the bubble</em>. In a Mealy machine, the output wire bypasses memory and connects directly from the input through combinational logic — so we write it <em>on the arrow</em>.</p>
+</div>
+
+<!-- Machine Panels -->
+<div class="machines-row anim-in anim-d3">
+    <!-- Moore Panel -->
+    <div class="machine-panel moore-panel">
+        <div class="panel-header">
+            <h2>Moore Machine</h2>
+            <div class="formula">Output = f( State )</div>
+        </div>
+        <div class="diagram-area" id="moore-state-diagram"></div>
+        <div class="connection-legend">
+            <div class="legend-item"><div class="legend-dot" style="background:var(--ff-color)"></div> Bubble = Flip-Flops</div>
+            <div class="legend-item"><div class="legend-line" style="background:var(--nsl-color)"></div> Arrow = Next-State Logic</div>
+            <div class="legend-item"><div class="legend-dot" style="background:var(--ol-color)"></div> Output inside = Output Logic</div>
+        </div>
+        <div class="diagram-area" id="moore-hw-diagram"></div>
+    </div>
+
+    <!-- VS Divider -->
+    <div class="vs-divider">
+        <div class="vs-badge">VS</div>
+    </div>
+
+    <!-- Mealy Panel -->
+    <div class="machine-panel mealy-panel">
+        <div class="panel-header">
+            <h2>Mealy Machine</h2>
+            <div class="formula">Output = f( State, Input )</div>
+        </div>
+        <div class="diagram-area" id="mealy-state-diagram"></div>
+        <div class="connection-legend">
+            <div class="legend-item"><div class="legend-dot" style="background:var(--ff-color)"></div> Bubble = Flip-Flops</div>
+            <div class="legend-item"><div class="legend-line" style="background:var(--nsl-color)"></div> Arrow = Next-State Logic</div>
+            <div class="legend-item"><div class="legend-line" style="background:var(--bypass);height:3px;border-top:1px dashed var(--bypass);background:none;"></div> Output on arrow = Bypass Wire</div>
+        </div>
+        <div class="diagram-area" id="mealy-hw-diagram"></div>
+    </div>
+</div>
+
+<!-- Simulation -->
+<div class="sim-section anim-in anim-d4">
+    <div class="sim-title">Interactive Simulation: Rising Edge Detector</div>
+    <div class="sim-desc">Detects when input transitions from 0 to 1. Watch how Mealy responds immediately while Moore waits for the next clock.</div>
+
+    <div class="controls-row">
+        <button class="ctrl-btn input-btn selected" id="btn-in-0" onclick="setInput(0)">Input: 0</button>
+        <button class="ctrl-btn input-btn" id="btn-in-1" onclick="setInput(1)">Input: 1</button>
+        <button class="ctrl-btn clock-btn" id="btn-clock" onclick="clockPulse()">Clock Pulse</button>
+        <button class="ctrl-btn reset-btn" onclick="resetSim()">Reset</button>
+        <button class="ctrl-btn demo-btn" id="btn-demo" onclick="toggleDemo()">Demo</button>
+    </div>
+    <div style="text-align:center;font-size:0.72rem;color:var(--text-dim);margin-top:-0.75rem;margin-bottom:1rem;">
+        Keyboard: <span class="fira" style="color:var(--text)">0</span> / <span class="fira" style="color:var(--text)">1</span> for input, <span class="fira" style="color:var(--text)">Space</span> for clock, <span class="fira" style="color:var(--text)">R</span> reset, <span class="fira" style="color:var(--text)">D</span> demo
+    </div>
+
+    <div class="status-row">
+        <div class="status-card moore-card">
+            <div class="sc-machine">Moore Machine</div>
+            <div class="sc-state" id="moore-state-display">State: S0</div>
+            <div class="sc-output" id="moore-output-display">0</div>
+            <div class="sc-note" id="moore-note">Output depends on state only</div>
+        </div>
+        <div class="status-card mealy-card">
+            <div class="sc-machine">Mealy Machine</div>
+            <div class="sc-state" id="mealy-state-display">State: A</div>
+            <div class="sc-output" id="mealy-output-display">0</div>
+            <div class="sc-note" id="mealy-note">Output depends on state + input</div>
+        </div>
+    </div>
+
+    <div class="timing-container">
+        <canvas id="timing-canvas" height="200"></canvas>
+    </div>
+</div>
+
+<!-- Insights -->
+<div class="insights-section anim-in anim-d5">
+    <div class="insight-card">
+        <div class="ic-icon" style="background:rgba(224,64,251,0.15);">
+            <svg width="22" height="22" viewBox="0 0 22 22"><circle cx="11" cy="11" r="9" fill="none" stroke="#e040fb" stroke-width="2.5"/></svg>
+        </div>
+        <h3>The Bubble = Memory</h3>
+        <p>A state bubble represents the <strong style="color:var(--ff-color)">D Flip-Flops</strong> in hardware. Memory only updates on a clock edge. Moore's output lives here because it's permanently wired to memory — it can <em>only</em> change when the clock ticks.</p>
+    </div>
+    <div class="insight-card">
+        <div class="ic-icon" style="background:rgba(124,77,255,0.15);">
+            <svg width="22" height="22" viewBox="0 0 22 22"><path d="M4,11 L14,11 M11,7 L15,11 L11,15" fill="none" stroke="#7c4dff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <h3>The Arrow = Combinational Logic</h3>
+        <p>A transition arrow represents the <strong style="color:var(--nsl-color)">combinational logic</strong> path. In a Mealy machine, the input wire bypasses memory and reaches the output gates through this path — so the output is labeled <em>on the arrow</em>.</p>
+    </div>
+    <div class="insight-card">
+        <div class="ic-icon" style="background:rgba(255,215,64,0.15);">
+            <svg width="22" height="22" viewBox="0 0 22 22"><path d="M3,11 L19,11" fill="none" stroke="#ffd740" stroke-width="2.5" stroke-dasharray="4 3"/></svg>
+        </div>
+        <h3>The Bypass Wire</h3>
+        <p>Mealy's secret: a <strong style="color:var(--bypass)">direct wire</strong> from input to output logic that bypasses the flip-flops entirely. Because this wire skips memory, the output reacts <em>instantly</em> — between clock edges — which is why Mealy can detect one cycle earlier.</p>
+    </div>
+</div>
+
+<!-- Comparison Table -->
+<div class="comparison-section anim-in anim-d5">
+    <h3>Side-by-Side Comparison</h3>
+    <table class="comparison-table">
+        <thead>
+            <tr><th>Aspect</th><th>Moore Machine</th><th>Mealy Machine</th></tr>
+        </thead>
+        <tbody>
+            <tr><td>Output depends on</td><td>State only</td><td>State + Current Input</td></tr>
+            <tr><td>Diagram notation</td><td>Output inside bubble</td><td>Output on transition arrow</td></tr>
+            <tr><td>Hardware wiring</td><td>FF → Output Logic</td><td>FF + Input → Output Logic</td></tr>
+            <tr><td>Output timing</td><td>Changes at clock edges only</td><td>Can change between clock edges</td></tr>
+            <tr><td>States required</td><td>More (3 in this example)</td><td>Fewer (2 in this example)</td></tr>
+            <tr><td>Output glitches</td><td>Lower risk (registered)</td><td>Higher risk (combinational)</td></tr>
+        </tbody>
+    </table>
+</div>
+</div>
+
+<script>
+// ============================================================
+// DATA DEFINITIONS
+// ============================================================
+
+const MOORE_STATES = [
+    { id: 'S0', cx: 210, cy: 80,  r: 36, output: '0' },
+    { id: 'S1', cx: 95,  cy: 230, r: 36, output: '0' },
+    { id: 'S2', cx: 325, cy: 230, r: 36, output: '1' },
+];
+
+const MOORE_TRANS = [
+    { from: 'S0', to: 'S1', input: 0, label: '0',  curve: 0 },
+    { from: 'S0', to: 'S0', input: 1, label: '1',  selfLoop: true, loopAngle: -Math.PI/2 },
+    { from: 'S1', to: 'S1', input: 0, label: '0',  selfLoop: true, loopAngle: Math.PI },
+    { from: 'S1', to: 'S2', input: 1, label: '1',  curve: -20 },
+    { from: 'S2', to: 'S1', input: 0, label: '0',  curve: -20 },
+    { from: 'S2', to: 'S0', input: 1, label: '1',  curve: 0 },
+];
+
+const MEALY_STATES = [
+    { id: 'A', cx: 140, cy: 150, r: 42 },
+    { id: 'B', cx: 310, cy: 150, r: 42 },
+];
+
+const MEALY_TRANS = [
+    { from: 'A', to: 'B', input: 0, output: 0, label: '0/0', curve: -25 },
+    { from: 'A', to: 'A', input: 1, output: 0, label: '1/0', selfLoop: true, loopAngle: Math.PI },
+    { from: 'B', to: 'A', input: 1, output: 1, label: '1/1', curve: -25 },
+    { from: 'B', to: 'B', input: 0, output: 0, label: '0/0', selfLoop: true, loopAngle: 0 },
+];
+
+const MOORE_LOGIC = {
+    outputs: { S0: 0, S1: 0, S2: 1 },
+    transitions: { S0: { 0: 'S1', 1: 'S0' }, S1: { 0: 'S1', 1: 'S2' }, S2: { 0: 'S1', 1: 'S0' } }
+};
+
+const MEALY_LOGIC = {
+    transitions: {
+        A: { 0: { next: 'B', out: 0 }, 1: { next: 'A', out: 0 } },
+        B: { 0: { next: 'B', out: 0 }, 1: { next: 'A', out: 1 } }
+    }
+};
+
+// ============================================================
+// STATE
+// ============================================================
+
+let mooreState = 'S0';
+let mealyState = 'A';
+let currentInput = 0;
+let isRunningDemo = false;
+let demoTimeout = null;
+let history = { input: [], mooreOut: [], mealyOut: [] };
+let stepCount = 0;
+let isLightMode = false;
+
+// Returns current CSS variable value
+function cssVar(name) {
+    return getComputedStyle(document.body).getPropertyValue(name).trim();
+}
+
+// Theme-aware color helpers
+function mooreColor()  { return cssVar('--moore');   }
+function mealyColor()  { return cssVar('--mealy');   }
+function bypassColor() { return cssVar('--bypass');  }
+function dimColor()    { return cssVar('--text-dim'); }
+function bgColor()     { return cssVar('--bg');      }
+
+// DOM element caches
+const svgEls = { moore: {}, mealy: {} };
+
+// ============================================================
+// SVG HELPERS
+// ============================================================
+
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+function svgEl(tag, attrs = {}) {
+    const el = document.createElementNS(SVG_NS, tag);
+    for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
+    return el;
+}
+
+function getState(states, id) {
+    return states.find(s => s.id === id);
+}
+
+function arrowPath(fromS, toS, curve) {
+    const dx = toS.cx - fromS.cx;
+    const dy = toS.cy - fromS.cy;
+    const angle = Math.atan2(dy, dx);
+    const dist = Math.sqrt(dx * dx + dy * dy);
+
+    const mx = (fromS.cx + toS.cx) / 2;
+    const my = (fromS.cy + toS.cy) / 2;
+    const cpx = mx - Math.sin(angle) * curve;
+    const cpy = my + Math.cos(angle) * curve;
+
+    const sa = Math.atan2(cpy - fromS.cy, cpx - fromS.cx);
+    const sx = fromS.cx + fromS.r * Math.cos(sa);
+    const sy = fromS.cy + fromS.r * Math.sin(sa);
+
+    const ea = Math.atan2(cpy - toS.cy, cpx - toS.cx);
+    const ex = toS.cx + toS.r * Math.cos(ea);
+    const ey = toS.cy + toS.r * Math.sin(ea);
+
+    const lx = (sx + 2 * cpx + ex) / 4;
+    const ly = (sy + 2 * cpy + ey) / 4;
+
+    return { d: `M${sx.toFixed(1)},${sy.toFixed(1)} Q${cpx.toFixed(1)},${cpy.toFixed(1)} ${ex.toFixed(1)},${ey.toFixed(1)}`, lx, ly };
+}
+
+function straightArrowPath(fromS, toS) {
+    const dx = toS.cx - fromS.cx;
+    const dy = toS.cy - fromS.cy;
+    const angle = Math.atan2(dy, dx);
+
+    const sx = fromS.cx + fromS.r * Math.cos(angle);
+    const sy = fromS.cy + fromS.r * Math.sin(angle);
+    const ex = toS.cx - toS.r * Math.cos(angle);
+    const ey = toS.cy - toS.r * Math.sin(angle);
+
+    const lx = (sx + ex) / 2;
+    const ly = (sy + ey) / 2;
+
+    return { d: `M${sx.toFixed(1)},${sy.toFixed(1)} L${ex.toFixed(1)},${ey.toFixed(1)}`, lx, ly };
+}
+
+function selfLoopPathCalc(state, angle) {
+    const r = state.r;
+    const spread = 0.5;
+    const loopDist = r + 22;
+
+    const sa = angle - spread;
+    const ea = angle + spread;
+
+    const sx = state.cx + r * Math.cos(sa);
+    const sy = state.cy + r * Math.sin(sa);
+    const ex = state.cx + r * Math.cos(ea);
+    const ey = state.cy + r * Math.sin(ea);
+
+    const cp1x = state.cx + loopDist * Math.cos(angle - spread * 1.6);
+    const cp1y = state.cy + loopDist * Math.sin(angle - spread * 1.6);
+    const cp2x = state.cx + loopDist * Math.cos(angle + spread * 1.6);
+    const cp2y = state.cy + loopDist * Math.sin(angle + spread * 1.6);
+
+    const lx = state.cx + (loopDist + 8) * Math.cos(angle);
+    const ly = state.cy + (loopDist + 8) * Math.sin(angle);
+
+    return { d: `M${sx.toFixed(1)},${sy.toFixed(1)} C${cp1x.toFixed(1)},${cp1y.toFixed(1)} ${cp2x.toFixed(1)},${cp2y.toFixed(1)} ${ex.toFixed(1)},${ey.toFixed(1)}`, lx, ly };
+}
+
+// ============================================================
+// DRAW STATE DIAGRAMS
+// ============================================================
+
+function drawStateDiagram(containerId, machine) {
+    const isMoore = machine === 'moore';
+    const states = isMoore ? MOORE_STATES : MEALY_STATES;
+    const trans = isMoore ? MOORE_TRANS : MEALY_TRANS;
+    const color = isMoore ? 'var(--moore)' : 'var(--mealy)';
+    const arrowMarkerId = `arrow-${machine}`;
+
+    const svg = svgEl('svg', { viewBox: '0 -10 420 330', preserveAspectRatio: 'xMidYMid meet' });
+
+    // Defs (arrowheads)
+    const defs = svgEl('defs');
+    const marker = svgEl('marker', {
+        id: arrowMarkerId, viewBox: '0 0 10 6', refX: '9', refY: '3',
+        markerWidth: '9', markerHeight: '6', orient: 'auto'
+    });
+    marker.appendChild(svgEl('path', { d: 'M0,0 L10,3 L0,6 z', fill: dimColor() }));
+    defs.appendChild(marker);
+
+    const markerActive = svgEl('marker', {
+        id: arrowMarkerId + '-active', viewBox: '0 0 10 6', refX: '9', refY: '3',
+        markerWidth: '9', markerHeight: '6', orient: 'auto'
+    });
+    markerActive.appendChild(svgEl('path', { d: 'M0,0 L10,3 L0,6 z', fill: isMoore ? mooreColor() : mealyColor() }));
+    defs.appendChild(markerActive);
+
+    svg.appendChild(defs);
+
+    // Start arrow (small arrow pointing to initial state)
+    const initState = states[0];
+    const startX = initState.cx - initState.r - 30;
+    const startArrow = svgEl('path', {
+        d: `M${startX},${initState.cy} L${initState.cx - initState.r - 3},${initState.cy}`,
+        class: 'start-arrow', 'marker-end': `url(#${arrowMarkerId})`
+    });
+    svg.appendChild(startArrow);
+
+    // Draw transitions (arrows) - BEFORE states so they go behind
+    const transEls = {};
+    trans.forEach((t, i) => {
+        const fromS = getState(states, t.from);
+        const toS = getState(states, t.to);
+        let pathData;
+
+        if (t.selfLoop) {
+            pathData = selfLoopPathCalc(fromS, t.loopAngle);
+        } else if (t.curve && t.curve !== 0) {
+            pathData = arrowPath(fromS, toS, t.curve);
+        } else {
+            pathData = straightArrowPath(fromS, toS);
+        }
+
+        const path = svgEl('path', {
+            d: pathData.d,
+            class: 'trans-path',
+            'marker-end': `url(#${arrowMarkerId})`,
+            'data-from': t.from,
+            'data-to': t.to,
+            'data-input': t.input
+        });
+        svg.appendChild(path);
+
+        // Label background
+        const labelBg = svgEl('rect', {
+            x: pathData.lx - 16, y: pathData.ly - 9,
+            width: 32, height: 18, rx: 4,
+            fill: 'var(--bg)', opacity: '0.85'
+        });
+        svg.appendChild(labelBg);
+
+        const label = svgEl('text', {
+            x: pathData.lx, y: pathData.ly,
+            class: 'trans-label',
+            'data-from': t.from,
+            'data-to': t.to,
+            'data-input': t.input
+        });
+        label.textContent = t.label;
+        svg.appendChild(label);
+
+        const key = `${t.from}-${t.to}-${t.input}`;
+        transEls[key] = { path, label };
+    });
+
+    // Draw states (circles)
+    const stateEls = {};
+    states.forEach(s => {
+        const g = svgEl('g');
+
+        const circle = svgEl('circle', {
+            cx: s.cx, cy: s.cy, r: s.r,
+            class: 'state-circle',
+            'data-state': s.id
+        });
+        g.appendChild(circle);
+
+        const label = svgEl('text', {
+            x: s.cx, y: isMoore ? s.cy - 6 : s.cy,
+            class: 'state-label'
+        });
+        label.textContent = s.id;
+        g.appendChild(label);
+
+        let outputLabel = null;
+        if (isMoore) {
+            outputLabel = svgEl('text', {
+                x: s.cx, y: s.cy + 13,
+                class: 'output-label',
+                'data-state': s.id
+            });
+            outputLabel.textContent = `out=${s.output}`;
+            g.appendChild(outputLabel);
+        }
+
+        svg.appendChild(g);
+        stateEls[s.id] = { circle, label, outputLabel };
+    });
+
+    document.getElementById(containerId).innerHTML = '';
+    document.getElementById(containerId).appendChild(svg);
+
+    svgEls[machine].states = stateEls;
+    svgEls[machine].trans = transEls;
+}
+
+// ============================================================
+// DRAW HARDWARE DIAGRAMS
+// ============================================================
+
+function drawHardwareDiagram(containerId, machine) {
+    const isMoore = machine === 'moore';
+    const svg = svgEl('svg', { viewBox: '0 0 560 210', preserveAspectRatio: 'xMidYMid meet' });
+
+    const defs = svgEl('defs');
+    const hwArrow = svgEl('marker', {
+        id: `hw-arrow-${machine}`, viewBox: '0 0 8 6', refX: '7', refY: '3',
+        markerWidth: '7', markerHeight: '5', orient: 'auto'
+    });
+    hwArrow.appendChild(svgEl('path', { d: 'M0,0 L8,3 L0,6 z', fill: '#8b949e' }));
+    defs.appendChild(hwArrow);
+
+    if (!isMoore) {
+        const bypassArrow = svgEl('marker', {
+            id: 'bypass-arrow', viewBox: '0 0 8 6', refX: '7', refY: '3',
+            markerWidth: '7', markerHeight: '5', orient: 'auto'
+        });
+        bypassArrow.appendChild(svgEl('path', { d: 'M0,0 L8,3 L0,6 z', fill: '#ffd740' }));
+        defs.appendChild(bypassArrow);
+    }
+    svg.appendChild(defs);
+
+    const markerUrl = `url(#hw-arrow-${machine})`;
+
+    // Block positions
+    const nsl = { x: 105, y: 55, w: 110, h: 70 };
+    const ff  = { x: 255, y: 55, w: 90,  h: 70 };
+    const ol  = { x: 385, y: 55, w: 110, h: 70 };
+
+    // Wires (draw first, behind blocks)
+    const wireIds = {};
+
+    // Input → NSL
+    const w1 = svgEl('path', { d: `M40,90 L${nsl.x},90`, class: 'hw-wire', 'marker-end': markerUrl });
+    svg.appendChild(w1); wireIds.inputToNsl = w1;
+
+    // NSL → FF
+    const w2 = svgEl('path', { d: `M${nsl.x + nsl.w},90 L${ff.x},90`, class: 'hw-wire', 'marker-end': markerUrl });
+    svg.appendChild(w2); wireIds.nslToFf = w2;
+
+    // FF → OL
+    const w3 = svgEl('path', { d: `M${ff.x + ff.w},90 L${ol.x},90`, class: 'hw-wire', 'marker-end': markerUrl });
+    svg.appendChild(w3); wireIds.ffToOl = w3;
+
+    // OL → Output
+    const w4 = svgEl('path', { d: `M${ol.x + ol.w},90 L530,90`, class: 'hw-wire', 'marker-end': markerUrl });
+    svg.appendChild(w4); wireIds.olToOut = w4;
+
+    // Feedback: FF bottom → NSL bottom
+    const fbY = 160;
+    const nslMid = nsl.x + nsl.w / 2;
+    const ffMid = ff.x + ff.w / 2;
+    const w5 = svgEl('path', {
+        d: `M${ffMid},${ff.y + ff.h} L${ffMid},${fbY} L${nslMid},${fbY} L${nslMid},${nsl.y + nsl.h}`,
+        class: 'hw-wire', 'marker-end': markerUrl
+    });
+    svg.appendChild(w5); wireIds.feedback = w5;
+
+    // Bypass wire (Mealy only)
+    let bypassEl = null;
+    if (!isMoore) {
+        const bpY = 185;
+        const olMid = ol.x + ol.w / 2;
+        bypassEl = svgEl('path', {
+            d: `M55,90 L55,${bpY} L${olMid},${bpY} L${olMid},${ol.y + ol.h}`,
+            class: 'bypass-wire',
+            'marker-end': 'url(#bypass-arrow)'
+        });
+        svg.appendChild(bypassEl);
+
+        // Junction dot where bypass branches off the input wire
+        const junctionDot = svgEl('circle', { cx: 55, cy: 90, r: 4, fill: bypassColor() });
+        svg.appendChild(junctionDot);
+
+        // Bypass label
+        const bpLabel = svgEl('text', {
+            x: (55 + olMid) / 2, y: bpY - 8,
+            class: 'hw-sublabel',
+            'text-anchor': 'middle',
+            fill: bypassColor(),
+            'font-size': '10px',
+            opacity: '0.7'
+        });
+        bpLabel.textContent = 'BYPASS WIRE';
+        svg.appendChild(bpLabel);
+    }
+
+    // Blocks
+    const nslRect = svgEl('rect', { x: nsl.x, y: nsl.y, width: nsl.w, height: nsl.h, class: 'hw-block hw-nsl' });
+    svg.appendChild(nslRect);
+    const ffRect = svgEl('rect', { x: ff.x, y: ff.y, width: ff.w, height: ff.h, class: 'hw-block hw-ff' });
+    svg.appendChild(ffRect);
+    const olRect = svgEl('rect', { x: ol.x, y: ol.y, width: ol.w, height: ol.h, class: 'hw-block hw-ol' });
+    svg.appendChild(olRect);
+
+    // Block labels
+    function addBlockLabel(bx, by, bw, bh, line1, line2) {
+        const t1 = svgEl('text', { x: bx + bw / 2, y: by + bh / 2 - 7, class: 'hw-label' });
+        t1.textContent = line1;
+        svg.appendChild(t1);
+        const t2 = svgEl('text', { x: bx + bw / 2, y: by + bh / 2 + 9, class: 'hw-sublabel' });
+        t2.textContent = line2;
+        svg.appendChild(t2);
+    }
+
+    addBlockLabel(nsl.x, nsl.y, nsl.w, nsl.h, 'Next State', '(combinational)');
+    addBlockLabel(ff.x, ff.y, ff.w, ff.h, 'Flip-Flops', '(memory)');
+    addBlockLabel(ol.x, ol.y, ol.w, ol.h, 'Output', '(combinational)');
+
+    // Clock symbol on FF
+    const clkX = ff.x + ff.w / 2;
+    const clkPath = svgEl('path', {
+        d: `M${clkX - 6},${ff.y} L${clkX},${ff.y - 8} L${clkX + 6},${ff.y}`,
+        fill: 'none', stroke: 'var(--text-dim)', 'stroke-width': '1.5'
+    });
+    svg.appendChild(clkPath);
+    const clkLabel = svgEl('text', { x: clkX, y: ff.y - 14, class: 'hw-sublabel', 'text-anchor': 'middle' });
+    clkLabel.textContent = 'CLK';
+    svg.appendChild(clkLabel);
+
+    // I/O labels
+    const inLabel = svgEl('text', { x: 25, y: 90, class: 'hw-io-label', 'text-anchor': 'end' });
+    inLabel.textContent = 'IN';
+    svg.appendChild(inLabel);
+    const outLabel = svgEl('text', { x: 540, y: 90, class: 'hw-io-label', 'text-anchor': 'start' });
+    outLabel.textContent = 'OUT';
+    svg.appendChild(outLabel);
+
+    // Feedback label
+    const fbLabel = svgEl('text', {
+        x: (nslMid + ffMid) / 2, y: fbY - 7,
+        class: 'hw-sublabel', 'text-anchor': 'middle', opacity: '0.5'
+    });
+    fbLabel.textContent = 'state feedback';
+    svg.appendChild(fbLabel);
+
+    document.getElementById(containerId).innerHTML = '';
+    document.getElementById(containerId).appendChild(svg);
+
+    svgEls[machine].hw = {
+        nsl: nslRect, ff: ffRect, ol: olRect,
+        wires: wireIds, bypass: bypassEl
+    };
+}
+
+// ============================================================
+// UPDATE VISUALS
+// ============================================================
+
+function updateStateDiagrams() {
+    // Moore
+    for (const [id, els] of Object.entries(svgEls.moore.states)) {
+        const isActive = id === mooreState;
+        els.circle.classList.toggle('active', isActive);
+        if (els.outputLabel) {
+            els.outputLabel.classList.toggle('active-output', isActive && MOORE_LOGIC.outputs[id] === 1);
+        }
+    }
+
+    // Mealy
+    for (const [id, els] of Object.entries(svgEls.mealy.states)) {
+        const isActive = id === mealyState;
+        els.circle.classList.toggle('active', isActive);
+    }
+
+    // Preview transitions based on current input
+    updateTransitionPreview();
+}
+
+function updateTransitionPreview() {
+    // Clear all previews
+    for (const els of Object.values(svgEls.moore.trans)) {
+        els.path.classList.remove('preview-trans', 'active-trans');
+        els.label.classList.remove('preview-trans-label', 'active-trans-label');
+        els.path.setAttribute('marker-end', 'url(#arrow-moore)');
+    }
+    for (const els of Object.values(svgEls.mealy.trans)) {
+        els.path.classList.remove('preview-trans', 'active-trans');
+        els.label.classList.remove('preview-trans-label', 'active-trans-label');
+        els.path.setAttribute('marker-end', 'url(#arrow-mealy)');
+    }
+
+    // Show preview for current input
+    const mooreNext = MOORE_LOGIC.transitions[mooreState][currentInput];
+    const mooreKey = `${mooreState}-${mooreNext}-${currentInput}`;
+    if (svgEls.moore.trans[mooreKey]) {
+        svgEls.moore.trans[mooreKey].path.classList.add('preview-trans');
+        svgEls.moore.trans[mooreKey].label.classList.add('preview-trans-label');
+    }
+
+    const mealyT = MEALY_LOGIC.transitions[mealyState][currentInput];
+    const mealyKey = `${mealyState}-${mealyT.next}-${currentInput}`;
+    if (svgEls.mealy.trans[mealyKey]) {
+        svgEls.mealy.trans[mealyKey].path.classList.add('preview-trans');
+        svgEls.mealy.trans[mealyKey].label.classList.add('preview-trans-label');
+    }
+}
+
+function updateStatusDisplay() {
+    document.getElementById('moore-state-display').textContent = `State: ${mooreState}`;
+    document.getElementById('mealy-state-display').textContent = `State: ${mealyState}`;
+
+    const mooreOut = MOORE_LOGIC.outputs[mooreState];
+    document.getElementById('moore-output-display').textContent = mooreOut;
+
+    const mealyOut = MEALY_LOGIC.transitions[mealyState][currentInput].out;
+    const mealyOutEl = document.getElementById('mealy-output-display');
+    mealyOutEl.textContent = mealyOut;
+    mealyOutEl.classList.toggle('live', mealyOut === 1);
+}
+
+function updateInputButtons() {
+    document.getElementById('btn-in-0').classList.toggle('selected', currentInput === 0);
+    document.getElementById('btn-in-1').classList.toggle('selected', currentInput === 1);
+}
+
+// ============================================================
+// HARDWARE ANIMATION
+// ============================================================
+
+function animateHardware(machine, hasOutputChange) {
+    const hw = svgEls[machine].hw;
+    if (!hw) return;
+
+    const isMealy = machine === 'mealy';
+
+    // Sequence of activations
+    const sequence = [
+        { delay: 0, action: () => {
+            hw.wires.inputToNsl.classList.add('hw-wire-active');
+            if (isMealy && hw.bypass) hw.bypass.classList.add('bypass-active');
+        }},
+        { delay: 150, action: () => hw.nsl.classList.add('hw-active') },
+        { delay: 300, action: () => {
+            hw.wires.nslToFf.classList.add('hw-wire-active');
+            if (isMealy) hw.ol.classList.add('hw-active'); // Mealy OL activates early (bypass)
+        }},
+        { delay: 450, action: () => {
+            hw.ff.classList.add('hw-active');
+            hw.wires.feedback.classList.add('hw-wire-active');
+        }},
+        { delay: 550, action: () => {
+            hw.wires.ffToOl.classList.add('hw-wire-active');
+            if (!isMealy) hw.ol.classList.add('hw-active'); // Moore OL activates late
+        }},
+        { delay: 650, action: () => hw.wires.olToOut.classList.add('hw-wire-active') },
+        { delay: 1000, action: () => {
+            // Reset all
+            hw.nsl.classList.remove('hw-active');
+            hw.ff.classList.remove('hw-active');
+            hw.ol.classList.remove('hw-active');
+            Object.values(hw.wires).forEach(w => w.classList.remove('hw-wire-active'));
+            if (isMealy && hw.bypass) hw.bypass.classList.remove('bypass-active');
+        }}
+    ];
+
+    sequence.forEach(({ delay, action }) => setTimeout(action, delay));
+}
+
+function flashBypassWire() {
+    const hw = svgEls.mealy.hw;
+    if (!hw || !hw.bypass) return;
+    hw.bypass.classList.add('bypass-active');
+    hw.ol.classList.add('hw-active');
+    setTimeout(() => {
+        hw.bypass.classList.remove('bypass-active');
+        hw.ol.classList.remove('hw-active');
+    }, 600);
+}
+
+// ============================================================
+// TRANSITION ANIMATION
+// ============================================================
+
+function animateTransition(machine, fromState, toState, input) {
+    const transEls = svgEls[machine].trans;
+    const key = `${fromState}-${toState}-${input}`;
+    if (!transEls[key]) return;
+
+    const { path, label } = transEls[key];
+    const activeMarker = `url(#arrow-${machine}-active)`;
+
+    path.classList.remove('preview-trans');
+    label.classList.remove('preview-trans-label');
+    path.classList.add('active-trans');
+    label.classList.add('active-trans-label');
+    path.setAttribute('marker-end', activeMarker);
+
+    setTimeout(() => {
+        path.classList.remove('active-trans');
+        label.classList.remove('active-trans-label');
+        path.setAttribute('marker-end', `url(#arrow-${machine})`);
+    }, 700);
+}
+
+// ============================================================
+// TIMING DIAGRAM (Canvas)
+// ============================================================
+
+function drawTimingDiagram() {
+    const canvas = document.getElementById('timing-canvas');
+    const container = canvas.parentElement;
+    const totalSteps = history.input.length;
+
+    const labelW = 72;
+    const stepW = 55;
+    const signalH = 32;
+    const gapY = 10;
+    const padTop = 25;
+    const padBottom = 8;
+
+    const neededW = labelW + Math.max(totalSteps, 8) * stepW + 30;
+    const containerW = container.clientWidth - 32;
+    canvas.width = Math.max(neededW, containerW);
+    canvas.height = padTop + 4 * (signalH + gapY) + padBottom;
+
+    const ctx = canvas.getContext('2d');
+
+    // Fill background explicitly so canvas matches theme
+    ctx.fillStyle = bgColor();
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const signals = [
+        { name: 'Input', data: history.input,    color: bypassColor() },
+        { name: 'Moore', data: history.mooreOut,  color: mooreColor()  },
+        { name: 'Mealy', data: history.mealyOut,  color: mealyColor()  },
+    ];
+
+    const stepNumColor = cssVar('--text-dim');
+    const clkColor     = cssVar('--text-dim');
+    const gridColor    = cssVar('--surface2');
+
+    // Step numbers at top
+    ctx.font = '10px "Fira Code", monospace';
+    ctx.fillStyle = stepNumColor;
+    for (let i = 0; i < totalSteps; i++) {
+        ctx.fillText(`${i + 1}`, labelW + i * stepW + stepW / 2 - 3, 12);
+    }
+
+    // Clock waveform
+    const clkY = padTop;
+    ctx.fillStyle = stepNumColor;
+    ctx.font = '11px "Fira Code", monospace';
+    ctx.fillText('CLK', 8, clkY + signalH / 2 + 4);
+
+    ctx.strokeStyle = clkColor;
+    ctx.lineWidth = 1.5;
+    for (let i = 0; i < totalSteps; i++) {
+        const x = labelW + i * stepW;
+        ctx.beginPath();
+        ctx.moveTo(x, clkY + signalH);
+        ctx.lineTo(x, clkY + signalH);
+        ctx.lineTo(x + 2, clkY);
+        ctx.lineTo(x + stepW * 0.35, clkY);
+        ctx.lineTo(x + stepW * 0.35 + 2, clkY + signalH);
+        ctx.lineTo(x + stepW, clkY + signalH);
+        ctx.stroke();
+    }
+
+    // Draw placeholder gridlines
+    ctx.strokeStyle = gridColor;
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= Math.max(totalSteps, 8); i++) {
+        const x = labelW + i * stepW;
+        ctx.beginPath();
+        ctx.setLineDash([2, 4]);
+        ctx.moveTo(x, padTop);
+        ctx.lineTo(x, canvas.height - padBottom);
+        ctx.stroke();
+        ctx.setLineDash([]);
+    }
+
+    // Draw signal waveforms
+    signals.forEach((sig, si) => {
+        const baseY = padTop + (si + 1) * (signalH + gapY);
+
+        ctx.fillStyle = sig.color + '99';
+        ctx.font = '11px "Fira Code", monospace';
+        ctx.fillText(sig.name, 8, baseY + signalH / 2 + 4);
+
+        if (sig.data.length === 0) return;
+
+        ctx.strokeStyle = sig.color;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+
+        for (let i = 0; i < sig.data.length; i++) {
+            const x = labelW + i * stepW;
+            const val = sig.data[i];
+            const yHigh = baseY + 4;
+            const yLow = baseY + signalH - 4;
+            const y = val ? yHigh : yLow;
+
+            if (i === 0) {
+                ctx.moveTo(x, y);
+            } else {
+                const prevY = sig.data[i - 1] ? yHigh : yLow;
+                ctx.lineTo(x, prevY);
+                if (prevY !== y) ctx.lineTo(x, y);
+            }
+            ctx.lineTo(x + stepW, y);
+        }
+        ctx.stroke();
+
+        // Draw value labels inside each step
+        ctx.font = '9px "Fira Code", monospace';
+        ctx.fillStyle = sig.color + '88';
+        for (let i = 0; i < sig.data.length; i++) {
+            const x = labelW + i * stepW + stepW / 2 - 3;
+            const val = sig.data[i];
+            ctx.fillText(val.toString(), x, baseY + signalH / 2 + 3);
+        }
+    });
+
+    // Auto-scroll to latest
+    if (totalSteps > 0) {
+        container.scrollLeft = Math.max(0, neededW - containerW);
+    }
+}
+
+// ============================================================
+// SIMULATION LOGIC
+// ============================================================
+
+function setInput(val) {
+    const oldInput = currentInput;
+    const oldMealyOut = MEALY_LOGIC.transitions[mealyState][oldInput].out;
+    currentInput = val;
+    updateInputButtons();
+
+    const newMealyOut = MEALY_LOGIC.transitions[mealyState][val].out;
+
+    updateStatusDisplay();
+    updateTransitionPreview();
+
+    // Flash note if Mealy output changed due to input change (not clock!)
+    const mealyNote = document.getElementById('mealy-note');
+    if (oldInput !== val && newMealyOut !== oldMealyOut) {
+        mealyNote.textContent = 'Output changed without clock!';
+        mealyNote.classList.add('flash');
+        flashBypassWire();
+    } else if (newMealyOut !== MOORE_LOGIC.outputs[mooreState]) {
+        mealyNote.textContent = 'Differs from Moore (bypass wire!)';
+        mealyNote.classList.add('flash');
+        mealyNote.style.color = 'var(--bypass)';
+    } else {
+        mealyNote.textContent = 'Output depends on state + input';
+        mealyNote.classList.remove('flash');
+        mealyNote.style.color = '';
+    }
+
+    const mooreNote = document.getElementById('moore-note');
+    mooreNote.textContent = 'Output depends on state only';
+    mooreNote.classList.remove('flash');
+    mooreNote.style.color = '';
+}
+
+function clockPulse() {
+    // Record outputs BEFORE transition
+    const mooreOut = MOORE_LOGIC.outputs[mooreState];
+    const mealyOut = MEALY_LOGIC.transitions[mealyState][currentInput].out;
+
+    history.input.push(currentInput);
+    history.mooreOut.push(mooreOut);
+    history.mealyOut.push(mealyOut);
+    stepCount++;
+
+    // Calculate next states
+    const mooreNext = MOORE_LOGIC.transitions[mooreState][currentInput];
+    const mealyNext = MEALY_LOGIC.transitions[mealyState][currentInput].next;
+
+    // Animate transitions
+    animateTransition('moore', mooreState, mooreNext, currentInput);
+    animateTransition('mealy', mealyState, mealyNext, currentInput);
+
+    // Animate hardware
+    animateHardware('moore');
+    animateHardware('mealy');
+
+    // Update states
+    mooreState = mooreNext;
+    mealyState = mealyNext;
+
+    // Update all displays
+    setTimeout(() => {
+        updateStateDiagrams();
+        updateStatusDisplay();
+        drawTimingDiagram();
+
+        // Update notes
+        const mooreNote = document.getElementById('moore-note');
+        const newMooreOut = MOORE_LOGIC.outputs[mooreState];
+        if (newMooreOut === 1) {
+            mooreNote.textContent = 'Detected! (one cycle late)';
+            mooreNote.classList.add('flash');
+            mooreNote.style.color = 'var(--moore)';
+        } else {
+            mooreNote.textContent = 'Output depends on state only';
+            mooreNote.classList.remove('flash');
+            mooreNote.style.color = '';
+        }
+
+        const mealyNote = document.getElementById('mealy-note');
+        mealyNote.textContent = 'Output depends on state + input';
+        mealyNote.classList.remove('flash');
+    }, 350);
+}
+
+function resetSim() {
+    stopDemo();
+    mooreState = 'S0';
+    mealyState = 'A';
+    currentInput = 0;
+    stepCount = 0;
+    history = { input: [], mooreOut: [], mealyOut: [] };
+
+    updateInputButtons();
+    updateStateDiagrams();
+    updateStatusDisplay();
+    drawTimingDiagram();
+
+    document.getElementById('moore-note').textContent = 'Output depends on state only';
+    document.getElementById('moore-note').classList.remove('flash');
+    document.getElementById('moore-note').style.color = '';
+    document.getElementById('mealy-note').textContent = 'Output depends on state + input';
+    document.getElementById('mealy-note').classList.remove('flash');
+}
+
+// ============================================================
+// DEMO MODE
+// ============================================================
+
+const DEMO_SEQUENCE = [0, 0, 1, 1, 0, 1, 0, 0, 1, 0];
+let demoStep = 0;
+
+function toggleDemo() {
+    if (isRunningDemo) {
+        stopDemo();
+    } else {
+        startDemo();
+    }
+}
+
+function startDemo() {
+    resetSim();
+    isRunningDemo = true;
+    demoStep = 0;
+    document.getElementById('btn-demo').textContent = 'Stop';
+    document.getElementById('btn-demo').classList.add('running');
+    runDemoStep();
+}
+
+function stopDemo() {
+    isRunningDemo = false;
+    if (demoTimeout) clearTimeout(demoTimeout);
+    demoTimeout = null;
+    document.getElementById('btn-demo').textContent = 'Demo';
+    document.getElementById('btn-demo').classList.remove('running');
+}
+
+function runDemoStep() {
+    if (!isRunningDemo || demoStep >= DEMO_SEQUENCE.length) {
+        stopDemo();
+        return;
+    }
+
+    const input = DEMO_SEQUENCE[demoStep];
+
+    // Phase 1: Set input
+    setInput(input);
+
+    // Phase 2: Clock after a pause
+    demoTimeout = setTimeout(() => {
+        if (!isRunningDemo) return;
+        clockPulse();
+
+        demoStep++;
+        // Phase 3: Next step after a pause
+        demoTimeout = setTimeout(() => {
+            runDemoStep();
+        }, 600);
+    }, 500);
+}
+
+// ============================================================
+// LIGHT / DARK MODE TOGGLE
+// ============================================================
+
+function toggleMode() {
+    isLightMode = !isLightMode;
+    document.body.classList.toggle('light-mode', isLightMode);
+
+    const btn = document.getElementById('mode-toggle');
+    btn.textContent = isLightMode ? '🌙 Dark' : '☀️ Light';
+
+    // Re-render all SVG diagrams so markers pick up new colors
+    drawStateDiagram('moore-state-diagram', 'moore');
+    drawStateDiagram('mealy-state-diagram', 'mealy');
+    drawHardwareDiagram('moore-hw-diagram', 'moore');
+    drawHardwareDiagram('mealy-hw-diagram', 'mealy');
+    updateStateDiagrams();
+    updateStatusDisplay();
+    drawTimingDiagram();
+}
+
+// ============================================================
+// INITIALIZATION
+// ============================================================
+
+function init() {
+    drawStateDiagram('moore-state-diagram', 'moore');
+    drawStateDiagram('mealy-state-diagram', 'mealy');
+    drawHardwareDiagram('moore-hw-diagram', 'moore');
+    drawHardwareDiagram('mealy-hw-diagram', 'mealy');
+
+    updateStateDiagrams();
+    updateStatusDisplay();
+    updateInputButtons();
+    drawTimingDiagram();
+}
+
+window.addEventListener('load', init);
+window.addEventListener('resize', () => {
+    drawTimingDiagram();
+});
+
+// Keyboard shortcuts
+document.addEventListener('keydown', (e) => {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    switch (e.key) {
+        case '0': setInput(0); break;
+        case '1': setInput(1); break;
+        case ' ':
+        case 'Enter': e.preventDefault(); clockPulse(); break;
+        case 'r': case 'R': resetSim(); break;
+        case 'd': case 'D': toggleDemo(); break;
+    }
+});
+</script>
+</body>
+</html>

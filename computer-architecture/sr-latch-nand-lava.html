@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SR Latch With NAND Gates</title>
+  <style>
+    :root {
+      --bg: #ffffff;
+      --panel: #fffdf8;
+      --line: #4a742d;
+      --line-soft: #d9dfcf;
+      --text: #1f2b1a;
+      --muted: #66735c;
+      --one: #ea5742;
+      --one-glow: rgba(234, 87, 66, 0.38);
+      --zero: #2f74e0;
+      --zero-glow: rgba(47, 116, 224, 0.38);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html, body {
+      margin: 0;
+      min-height: 100%;
+    }
+
+    body {
+      font-family: "Avenir Next", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 22px;
+    }
+
+    .app {
+      max-width: 1460px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: minmax(780px, 1.45fr) 360px;
+      gap: 22px;
+      align-items: start;
+    }
+
+    .stage {
+      background: var(--panel);
+      border: 1px solid var(--line-soft);
+      border-radius: 22px;
+      padding: 18px;
+    }
+
+    .controls {
+      padding: 8px 4px;
+      display: grid;
+      gap: 16px;
+      align-content: start;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 1.8rem;
+      line-height: 1.05;
+      letter-spacing: -0.04em;
+    }
+
+    .switches {
+      margin: 0;
+      padding-left: 1.25rem;
+      display: grid;
+      gap: 14px;
+    }
+
+    .switch-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+    }
+
+    .switch-label {
+      display: grid;
+      gap: 6px;
+    }
+
+    .switch-label strong {
+      font-size: 1rem;
+    }
+
+    .logic-chip {
+      display: inline-flex;
+      justify-content: center;
+      align-items: center;
+      min-width: 42px;
+      padding: 5px 10px;
+      border-radius: 999px;
+      color: white;
+      font-weight: 800;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.92rem;
+    }
+
+    .logic-0 {
+      background: var(--zero);
+    }
+
+    .logic-1 {
+      background: var(--one);
+    }
+
+    .toggle {
+      position: relative;
+      width: 72px;
+      height: 40px;
+      flex: 0 0 auto;
+    }
+
+    .toggle input {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      margin: 0;
+      cursor: pointer;
+    }
+
+    .toggle-track {
+      position: absolute;
+      inset: 0;
+      border-radius: 999px;
+      background: #d4dcc8;
+      transition: background 180ms ease;
+    }
+
+    .toggle-thumb {
+      position: absolute;
+      top: 5px;
+      left: 5px;
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      background: white;
+      border: 2px solid rgba(74, 116, 45, 0.16);
+      transition: transform 180ms ease;
+    }
+
+    .toggle input:checked + .toggle-track {
+      background: #cfe5bd;
+    }
+
+    .toggle input:checked + .toggle-track .toggle-thumb {
+      transform: translateX(32px);
+    }
+
+    .toggle input:disabled + .toggle-track {
+      opacity: 0.6;
+      cursor: wait;
+    }
+
+    .phase-box {
+      padding-left: 1.25rem;
+      display: grid;
+      gap: 6px;
+    }
+
+    .phase-tag {
+      font-size: 0.78rem;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .phase-text {
+      font-size: 0.98rem;
+      font-weight: 700;
+    }
+
+    svg {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    .wire-frame,
+    .gate {
+      fill: none;
+      stroke: var(--line);
+      stroke-width: 8;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .gate-body {
+      fill: none;
+      stroke: var(--line);
+      stroke-width: 8;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .bubble {
+      fill: white;
+      stroke: var(--line);
+      stroke-width: 7;
+    }
+
+    .label {
+      fill: var(--line);
+      font-weight: 800;
+      font-family: "Avenir Next", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+      letter-spacing: -0.03em;
+    }
+
+    .label.input {
+      font-size: 34px;
+    }
+
+    .label.output {
+      font-size: 42px;
+    }
+
+    .gate-text {
+      fill: var(--line);
+      font-weight: 800;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 18px;
+    }
+
+    .state-label {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 22px;
+      font-weight: 800;
+    }
+
+    .state-bit {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 22px;
+      font-weight: 900;
+      fill: white;
+      paint-order: stroke;
+      stroke-width: 8;
+      stroke-linejoin: round;
+    }
+
+    .signal-glow,
+    .signal-core,
+    .signal-lava {
+      fill: none;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      pointer-events: none;
+    }
+
+    .signal-glow {
+      stroke-width: 18;
+      opacity: 0.72;
+      filter: blur(10px);
+    }
+
+    .signal-core {
+      stroke-width: 10;
+    }
+
+    .signal-lava {
+      stroke: url(#lava-gradient);
+      stroke-width: 7;
+      opacity: 0.96;
+    }
+
+    .signal-node {
+      fill: white;
+      stroke-width: 6;
+    }
+
+    .pulse {
+      fill: rgba(255, 255, 255, 0.94);
+      stroke-width: 5;
+      pointer-events: none;
+    }
+
+    @media (max-width: 1180px) {
+      .app {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <section class="stage">
+      <svg viewBox="0 0 1220 760" aria-label="SR latch with NAND gates">
+        <defs>
+          <linearGradient id="lava-gradient" x1="0%" x2="100%" y1="0%" y2="0%">
+            <stop offset="0%" stop-color="rgba(255,255,255,0.05)"></stop>
+            <stop offset="24%" stop-color="rgba(255,255,255,0.94)"></stop>
+            <stop offset="52%" stop-color="rgba(255,228,170,0.98)"></stop>
+            <stop offset="80%" stop-color="rgba(255,255,255,0.88)"></stop>
+            <stop offset="100%" stop-color="rgba(255,255,255,0.05)"></stop>
+          </linearGradient>
+        </defs>
+
+        <text x="70" y="145" class="label input">Set</text>
+        <text x="70" y="620" class="label input">Reset</text>
+        <text x="1100" y="205" class="label output" id="q-label">Q</text>
+        <text x="1078" y="565" class="label output" id="qbar-label">Q'</text>
+
+        <path class="wire-frame" d="M 240 125 L 420 125 L 455 125"></path>
+        <path class="wire-frame" d="M 240 565 L 420 565 L 455 565"></path>
+        <path class="wire-frame" d="M 760 182 L 1035 182"></path>
+        <path class="wire-frame" d="M 760 542 L 1035 542"></path>
+        <path class="wire-frame" d="M 760 182 L 865 182 L 865 400 L 420 400 L 455 400"></path>
+        <path class="wire-frame" d="M 760 542 L 815 542 L 815 245 L 420 245 L 455 245"></path>
+
+        <path class="gate-body" d="M 455 80 L 455 285 L 560 285 C 655 285, 745 228, 745 182 C 745 136, 655 80, 560 80 Z"></path>
+        <circle class="bubble" cx="760" cy="182" r="15"></circle>
+
+        <path class="gate-body" d="M 455 360 L 455 645 L 560 645 C 655 645, 745 587, 745 542 C 745 497, 655 360, 560 360 Z"></path>
+        <circle class="bubble" cx="760" cy="542" r="15"></circle>
+
+        <text x="570" y="190" class="gate-text">NAND</text>
+        <text x="570" y="550" class="gate-text">NAND</text>
+
+        <g id="sig-set">
+          <path id="glow-set" class="signal-glow" d="M 240 125 L 420 125 L 455 125"></path>
+          <path id="core-set" class="signal-core" d="M 240 125 L 420 125 L 455 125"></path>
+          <path id="lava-set" class="signal-lava" d="M 240 125 L 420 125 L 455 125"></path>
+          <circle id="pulse-set" class="pulse" cx="240" cy="125" r="11"></circle>
+          <circle id="node-set" class="signal-node" cx="420" cy="125" r="15"></circle>
+        </g>
+
+        <g id="sig-reset">
+          <path id="glow-reset" class="signal-glow" d="M 240 565 L 420 565 L 455 565"></path>
+          <path id="core-reset" class="signal-core" d="M 240 565 L 420 565 L 455 565"></path>
+          <path id="lava-reset" class="signal-lava" d="M 240 565 L 420 565 L 455 565"></path>
+          <circle id="pulse-reset" class="pulse" cx="240" cy="565" r="11"></circle>
+          <circle id="node-reset" class="signal-node" cx="420" cy="565" r="15"></circle>
+        </g>
+
+        <g id="sig-q">
+          <path id="glow-q" class="signal-glow" d="M 760 182 L 1035 182"></path>
+          <path id="core-q" class="signal-core" d="M 760 182 L 1035 182"></path>
+          <path id="lava-q" class="signal-lava" d="M 760 182 L 1035 182"></path>
+          <circle id="pulse-q" class="pulse" cx="760" cy="182" r="11"></circle>
+          <circle id="node-q" class="signal-node" cx="1035" cy="182" r="15"></circle>
+        </g>
+
+        <g id="sig-qbar">
+          <path id="glow-qbar" class="signal-glow" d="M 760 542 L 1035 542"></path>
+          <path id="core-qbar" class="signal-core" d="M 760 542 L 1035 542"></path>
+          <path id="lava-qbar" class="signal-lava" d="M 760 542 L 1035 542"></path>
+          <circle id="pulse-qbar" class="pulse" cx="760" cy="542" r="11"></circle>
+          <circle id="node-qbar" class="signal-node" cx="1035" cy="542" r="15"></circle>
+        </g>
+
+        <g id="sig-fb-bottom">
+          <path id="glow-fb-bottom" class="signal-glow" d="M 760 182 L 865 182 L 865 400 L 420 400 L 455 400"></path>
+          <path id="core-fb-bottom" class="signal-core" d="M 760 182 L 865 182 L 865 400 L 420 400 L 455 400"></path>
+          <path id="lava-fb-bottom" class="signal-lava" d="M 760 182 L 865 182 L 865 400 L 420 400 L 455 400"></path>
+          <circle id="pulse-fb-bottom" class="pulse" cx="760" cy="182" r="11"></circle>
+          <circle id="node-fb-bottom" class="signal-node" cx="420" cy="400" r="15"></circle>
+        </g>
+
+        <g id="sig-fb-top">
+          <path id="glow-fb-top" class="signal-glow" d="M 760 542 L 815 542 L 815 245 L 420 245 L 455 245"></path>
+          <path id="core-fb-top" class="signal-core" d="M 760 542 L 815 542 L 815 245 L 420 245 L 455 245"></path>
+          <path id="lava-fb-top" class="signal-lava" d="M 760 542 L 815 542 L 815 245 L 420 245 L 455 245"></path>
+          <circle id="pulse-fb-top" class="pulse" cx="760" cy="542" r="11"></circle>
+          <circle id="node-fb-top" class="signal-node" cx="420" cy="245" r="15"></circle>
+        </g>
+
+        <text x="900" y="165" class="state-label" id="q-state-label">Q =</text>
+        <text x="974" y="165" id="q-bit" class="state-bit">1</text>
+        <text x="900" y="525" class="state-label" id="qbar-state-label">Q' =</text>
+        <text x="985" y="525" id="qbar-bit" class="state-bit">0</text>
+      </svg>
+    </section>
+
+    <aside class="controls">
+      <h1>SR Latch With NAND Gates</h1>
+
+      <ul class="switches">
+        <li class="switch-row">
+          <div class="switch-label">
+            <strong>Set</strong>
+            <span id="s-chip" class="logic-chip logic-1">1</span>
+          </div>
+          <label class="toggle">
+            <input id="switch-s" type="checkbox" checked>
+            <span class="toggle-track">
+              <span class="toggle-thumb"></span>
+            </span>
+          </label>
+        </li>
+
+        <li class="switch-row">
+          <div class="switch-label">
+            <strong>Reset</strong>
+            <span id="r-chip" class="logic-chip logic-1">1</span>
+          </div>
+          <label class="toggle">
+            <input id="switch-r" type="checkbox" checked>
+            <span class="toggle-track">
+              <span class="toggle-thumb"></span>
+            </span>
+          </label>
+        </li>
+      </ul>
+
+      <div class="phase-box">
+        <div class="phase-tag" id="phase-tag">Phase 0</div>
+        <div class="phase-text" id="phase-text">Ready</div>
+      </div>
+    </aside>
+  </div>
+
+  <script>
+    const COLORS = {
+      0: { solid: "#2f74e0", glow: "rgba(47, 116, 224, 0.38)", stroke: "rgba(16, 52, 114, 0.58)" },
+      1: { solid: "#ea5742", glow: "rgba(234, 87, 66, 0.38)", stroke: "rgba(122, 35, 23, 0.56)" }
+    };
+
+    const SIGNAL_DURATION = {
+      set: 1200,
+      reset: 1200,
+      q: 1500,
+      qbar: 1500,
+      "fb-top": 1900,
+      "fb-bottom": 1900
+    };
+
+    const state = {
+      S: 1,
+      R: 1,
+      Q: 1,
+      QBAR: 0,
+      memoryQ: 1,
+      memoryQBAR: 0,
+      token: 0,
+      busy: false
+    };
+
+    const signalEls = {};
+    const switchS = document.getElementById("switch-s");
+    const switchR = document.getElementById("switch-r");
+    const sChip = document.getElementById("s-chip");
+    const rChip = document.getElementById("r-chip");
+    const qBit = document.getElementById("q-bit");
+    const qbarBit = document.getElementById("qbar-bit");
+    const qLabel = document.getElementById("q-label");
+    const qbarLabel = document.getElementById("qbar-label");
+    const qStateLabel = document.getElementById("q-state-label");
+    const qbarStateLabel = document.getElementById("qbar-state-label");
+    const phaseTag = document.getElementById("phase-tag");
+    const phaseText = document.getElementById("phase-text");
+
+    function nand(a, b) {
+      return Number(!(a && b));
+    }
+
+    function setBusy(value) {
+      state.busy = value;
+      switchS.disabled = value;
+      switchR.disabled = value;
+    }
+
+    function setPhase(number, text) {
+      phaseTag.textContent = `Phase ${number}`;
+      phaseText.textContent = text;
+    }
+
+    function setChip(el, value) {
+      el.textContent = String(value);
+      el.classList.remove("logic-0", "logic-1");
+      el.classList.add(value ? "logic-1" : "logic-0");
+    }
+
+    function setBit(el, value) {
+      el.textContent = String(value);
+      el.setAttribute("fill", COLORS[value].solid);
+      el.setAttribute("stroke", COLORS[value].stroke);
+    }
+
+    function setColoredText(el, value) {
+      el.setAttribute("fill", COLORS[value].solid);
+    }
+
+    function initSignals() {
+      Object.keys(SIGNAL_DURATION).forEach((name) => {
+        const core = document.getElementById(`core-${name}`);
+        const glow = document.getElementById(`glow-${name}`);
+        const lava = document.getElementById(`lava-${name}`);
+        const pulse = document.getElementById(`pulse-${name}`);
+        const node = document.getElementById(`node-${name}`) || null;
+        const length = core.getTotalLength();
+
+        signalEls[name] = { core, glow, lava, pulse, node, length };
+        core.style.strokeDasharray = `${length} ${length}`;
+        lava.style.strokeDasharray = `${length} ${length}`;
+      });
+    }
+
+    function setSignalColor(name, value) {
+      const signal = signalEls[name];
+      signal.core.style.stroke = COLORS[value].solid;
+      signal.glow.style.stroke = COLORS[value].glow;
+      signal.pulse.style.stroke = COLORS[value].solid;
+      if (signal.node) {
+        signal.node.style.stroke = COLORS[value].solid;
+      }
+    }
+
+    function setSignalProgress(name, progress) {
+      const signal = signalEls[name];
+      const clamped = Math.max(0, Math.min(1, progress));
+      const draw = clamped * signal.length;
+      signal.core.style.strokeDasharray = `${draw} ${signal.length}`;
+      signal.lava.style.strokeDasharray = `${Math.max(draw, 0.001)} ${signal.length}`;
+      signal.core.style.opacity = draw > 0 ? "1" : "0";
+      signal.lava.style.opacity = draw > 0 ? "0.96" : "0";
+      signal.lava.style.strokeDashoffset = ((1 - clamped) * signal.length * 0.62).toFixed(2);
+      const point = signal.core.getPointAtLength(signal.length * clamped);
+      signal.pulse.setAttribute("cx", point.x.toFixed(2));
+      signal.pulse.setAttribute("cy", point.y.toFixed(2));
+    }
+
+    function settleSignal(name) {
+      setSignalProgress(name, 1);
+    }
+
+    function animateSignal(name, value, token) {
+      return new Promise((resolve) => {
+        const started = performance.now();
+        const duration = SIGNAL_DURATION[name];
+        setSignalColor(name, value);
+        setSignalProgress(name, 0);
+
+        function frame(now) {
+          if (token !== state.token) {
+            resolve(false);
+            return;
+          }
+
+          const progress = Math.min(1, (now - started) / duration);
+          setSignalProgress(name, progress);
+          if (progress < 1) {
+            requestAnimationFrame(frame);
+            return;
+          }
+          resolve(true);
+        }
+
+        requestAnimationFrame(frame);
+      });
+    }
+
+    function paintStableSignals() {
+      setSignalColor("set", state.S);
+      setSignalColor("reset", state.R);
+      setSignalColor("q", state.Q);
+      setSignalColor("qbar", state.QBAR);
+      setSignalColor("fb-bottom", state.Q);
+      setSignalColor("fb-top", state.QBAR);
+      Object.keys(SIGNAL_DURATION).forEach(settleSignal);
+    }
+
+    function computeTarget(nextS, nextR) {
+      const key = `${nextS}${nextR}`;
+      if (key === "01") return { mode: "set", Q: 1, QBAR: 0, forbidden: false };
+      if (key === "10") return { mode: "reset", Q: 0, QBAR: 1, forbidden: false };
+      if (key === "00") return { mode: "forbidden", Q: 1, QBAR: 1, forbidden: true };
+      return { mode: "hold", Q: state.memoryQ, QBAR: state.memoryQBAR, forbidden: false };
+    }
+
+    function refreshReadoutText() {
+      setChip(sChip, state.S);
+      setChip(rChip, state.R);
+      setBit(qBit, state.Q);
+      setBit(qbarBit, state.QBAR);
+      setColoredText(qLabel, state.Q);
+      setColoredText(qbarLabel, state.QBAR);
+      setColoredText(qStateLabel, state.Q);
+      setColoredText(qbarStateLabel, state.QBAR);
+      switchS.checked = state.S === 1;
+      switchR.checked = state.R === 1;
+    }
+
+    async function runLatch(nextS, nextR) {
+      state.token += 1;
+      const token = state.token;
+      const target = computeTarget(nextS, nextR);
+
+      setBusy(true);
+      state.S = nextS;
+      state.R = nextR;
+      refreshReadoutText();
+
+      setPhase(1, "Inputs enter the NAND gates.");
+      await Promise.all([
+        animateSignal("set", state.S, token),
+        animateSignal("reset", state.R, token)
+      ]);
+      if (token !== state.token) return;
+
+      if (target.mode === "set") {
+        setPhase(2, "Top NAND responds and drives Q.");
+        state.Q = 1;
+        refreshReadoutText();
+        await animateSignal("q", state.Q, token);
+        if (token !== state.token) return;
+
+        setPhase(3, "Q crosses back into the lower NAND.");
+        await animateSignal("fb-bottom", state.Q, token);
+        if (token !== state.token) return;
+
+        setPhase(4, "Bottom NAND settles and drives Q'.");
+        state.QBAR = 0;
+        refreshReadoutText();
+        await Promise.all([
+          animateSignal("qbar", state.QBAR, token),
+          animateSignal("fb-top", state.QBAR, token)
+        ]);
+        if (token !== state.token) return;
+      } else if (target.mode === "reset") {
+        setPhase(2, "Bottom NAND responds and drives Q'.");
+        state.QBAR = 1;
+        refreshReadoutText();
+        await animateSignal("qbar", state.QBAR, token);
+        if (token !== state.token) return;
+
+        setPhase(3, "Q' crosses back into the upper NAND.");
+        await animateSignal("fb-top", state.QBAR, token);
+        if (token !== state.token) return;
+
+        setPhase(4, "Top NAND settles and drives Q.");
+        state.Q = 0;
+        refreshReadoutText();
+        await Promise.all([
+          animateSignal("q", state.Q, token),
+          animateSignal("fb-bottom", state.Q, token)
+        ]);
+        if (token !== state.token) return;
+      } else if (target.mode === "forbidden") {
+        setPhase(2, "Both NAND outputs are forced high.");
+        state.Q = 1;
+        state.QBAR = 1;
+        refreshReadoutText();
+        await Promise.all([
+          animateSignal("q", state.Q, token),
+          animateSignal("qbar", state.QBAR, token)
+        ]);
+        if (token !== state.token) return;
+
+        setPhase(3, "Both feedback paths carry logic 1.");
+        await Promise.all([
+          animateSignal("fb-bottom", state.Q, token),
+          animateSignal("fb-top", state.QBAR, token)
+        ]);
+        if (token !== state.token) return;
+
+        setPhase(4, "Forbidden state reached.");
+      } else {
+        setPhase(2, "Stored outputs replay their held state.");
+        state.Q = target.Q;
+        state.QBAR = target.QBAR;
+        refreshReadoutText();
+        await Promise.all([
+          animateSignal("q", state.Q, token),
+          animateSignal("qbar", state.QBAR, token)
+        ]);
+        if (token !== state.token) return;
+
+        setPhase(3, "The crossed feedback paths reinforce the memory.");
+        await Promise.all([
+          animateSignal("fb-bottom", state.Q, token),
+          animateSignal("fb-top", state.QBAR, token)
+        ]);
+        if (token !== state.token) return;
+
+        setPhase(4, "Hold state remains unchanged.");
+      }
+
+      state.Q = nand(state.S, state.QBAR);
+      state.QBAR = nand(state.R, state.Q);
+      if (!target.forbidden) {
+        state.memoryQ = state.Q;
+        state.memoryQBAR = state.QBAR;
+      }
+      refreshReadoutText();
+      paintStableSignals();
+
+      if (token === state.token) {
+        setBusy(false);
+      }
+    }
+
+    function bindControls() {
+      switchS.addEventListener("change", () => {
+        if (state.busy) return;
+        runLatch(switchS.checked ? 1 : 0, state.R);
+      });
+
+      switchR.addEventListener("change", () => {
+        if (state.busy) return;
+        runLatch(state.S, switchR.checked ? 1 : 0);
+      });
+    }
+
+    function init() {
+      initSignals();
+      refreshReadoutText();
+      paintStableSignals();
+      setPhase(0, "Ready");
+      bindControls();
+    }
+
+    init();
+  </script>
+</body>
+</html>

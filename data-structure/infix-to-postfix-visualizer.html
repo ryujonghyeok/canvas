@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Infix to Postfix Visualizer</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&family=IBM+Plex+Mono:wght@400;600;700&display=swap');
+
+    :root {
+      --bg: #fbfaf7;
+      --ink: #1f2937;
+      --muted: #6b7280;
+      --line: #d6d3d1;
+      --accent: #2563eb;
+      --accent-soft: #dbeafe;
+      --warm: #ea580c;
+      --warm-soft: #ffedd5;
+      --good: #15803d;
+      --good-soft: #dcfce7;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Manrope', sans-serif;
+      background: linear-gradient(180deg, #fffdfa 0%, #f7f3ec 100%);
+      color: var(--ink);
+      min-height: 100vh;
+      padding: 28px 18px 40px;
+    }
+
+    .page {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .top {
+      margin-bottom: 24px;
+    }
+
+    h1 {
+      font-size: clamp(2rem, 4vw, 4rem);
+      letter-spacing: -0.05em;
+      line-height: 0.95;
+      margin-bottom: 10px;
+    }
+
+    .sub {
+      color: var(--muted);
+      line-height: 1.6;
+      max-width: 60ch;
+      margin-bottom: 18px;
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+
+    input,
+    select,
+    button {
+      font: inherit;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+    }
+
+    input,
+    select {
+      padding: 12px 14px;
+      background: white;
+    }
+
+    #expressionInput {
+      flex: 1 1 420px;
+      min-width: 260px;
+      font-family: 'IBM Plex Mono', monospace;
+    }
+
+    #speedSelect {
+      min-width: 150px;
+    }
+
+    button {
+      padding: 12px 16px;
+      background: white;
+      cursor: pointer;
+      font-weight: 700;
+    }
+
+    button:hover:not(:disabled) {
+      border-color: #94a3b8;
+    }
+
+    button:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    .primary {
+      background: var(--accent);
+      color: white;
+      border-color: var(--accent);
+    }
+
+    .play.playing {
+      background: #dc2626;
+      color: white;
+      border-color: #dc2626;
+    }
+
+    .presets {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 22px;
+    }
+
+    .preset {
+      background: var(--warm-soft);
+      border-color: #fdba74;
+      color: #9a3412;
+      font-weight: 700;
+    }
+
+    .main {
+      display: flex;
+      gap: 28px;
+      align-items: stretch;
+    }
+
+    .stack-side {
+      width: 260px;
+      flex-shrink: 0;
+    }
+
+    .label {
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.09em;
+      color: var(--muted);
+      font-weight: 800;
+      margin-bottom: 12px;
+    }
+
+    .stack-frame {
+      min-height: 560px;
+      border: 4px solid var(--ink);
+      border-top-width: 8px;
+      border-radius: 24px 24px 12px 12px;
+      padding: 18px 16px;
+      display: flex;
+      flex-direction: column-reverse;
+      gap: 12px;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.96), rgba(245,245,244,0.9));
+    }
+
+    .stack-item {
+      background: var(--accent-soft);
+      border: 2px solid #93c5fd;
+      border-radius: 18px;
+      min-height: 62px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 1.5rem;
+      font-weight: 700;
+    }
+
+    .stack-item.top {
+      background: #bfdbfe;
+      border-color: var(--accent);
+    }
+
+    .stack-empty {
+      margin: auto 0;
+      text-align: center;
+      color: var(--muted);
+      line-height: 1.6;
+      padding: 20px 8px;
+    }
+
+    .content-side {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .line-block {
+      padding-bottom: 18px;
+      border-bottom: 1px solid #e7e5e4;
+    }
+
+    .expression {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: clamp(1.2rem, 2vw, 2rem);
+      line-height: 1.5;
+      word-break: break-word;
+    }
+
+    .remaining .expression {
+      color: var(--warm);
+    }
+
+    .postfix .expression {
+      color: var(--good);
+    }
+
+    .current {
+      padding: 12px 14px;
+      background: var(--accent-soft);
+      border-left: 5px solid var(--accent);
+      border-radius: 10px;
+      font-weight: 700;
+      margin-top: 10px;
+    }
+
+    .explanation {
+      font-size: 1.08rem;
+      line-height: 1.8;
+      max-width: 68ch;
+      padding: 16px 0 6px;
+    }
+
+    .timeline {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-top: auto;
+      padding-top: 8px;
+    }
+
+    #stepSlider {
+      width: 100%;
+      accent-color: var(--accent);
+    }
+
+    .stepmeta {
+      min-width: 116px;
+      text-align: right;
+      color: var(--muted);
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.9rem;
+    }
+
+    .status {
+      min-height: 20px;
+      color: #b91c1c;
+      font-weight: 700;
+      margin-top: 10px;
+    }
+
+    .token-current {
+      display: inline-block;
+      background: var(--accent-soft);
+      color: var(--accent);
+      padding: 0 8px;
+      border-radius: 8px;
+    }
+
+    @media (max-width: 900px) {
+      .main {
+        flex-direction: column;
+      }
+
+      .stack-side {
+        width: 100%;
+      }
+
+      .stack-frame {
+        min-height: 280px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="top">
+      <h1>Infix to Postfix</h1>
+      <p class="sub">Watch the operator stack change while the remaining infix expression shrinks and the postfix expression grows.</p>
+
+      <div class="controls">
+        <input id="expressionInput" value="A + B * ( C - D ) / E ^ F" spellcheck="false">
+        <select id="speedSelect">
+          <option value="1700">Slow</option>
+          <option value="1000" selected>Normal</option>
+          <option value="550">Fast</option>
+        </select>
+        <button id="buildBtn" class="primary">Build</button>
+        <button id="prevBtn">Prev</button>
+        <button id="playBtn" class="play">Play</button>
+        <button id="nextBtn">Next</button>
+        <button id="resetBtn">Reset</button>
+      </div>
+
+      <div class="presets">
+        <button class="preset" data-expression="A + B * C">A + B * C</button>
+        <button class="preset" data-expression="( A + B ) * C - D">( A + B ) * C - D</button>
+        <button class="preset" data-expression="A + B * ( C - D ) / E ^ F">A + B * ( C - D ) / E ^ F</button>
+        <button class="preset" data-expression="X ^ Y ^ Z + W / Q">X ^ Y ^ Z + W / Q</button>
+      </div>
+    </div>
+
+    <div class="main">
+      <section class="stack-side">
+        <div class="label">Operator Stack</div>
+        <div class="stack-frame" id="stackView"></div>
+      </section>
+
+      <section class="content-side">
+        <div class="line-block remaining">
+          <div class="label">Remaining Expression</div>
+          <div class="expression" id="remainingView">Build the walkthrough to begin.</div>
+          <div class="current" id="currentView">Current token: -</div>
+        </div>
+
+        <div class="line-block postfix">
+          <div class="label">Postfix Expression</div>
+          <div class="expression" id="outputView">-</div>
+        </div>
+
+        <div>
+          <div class="label">What Happens On This Step</div>
+          <div class="explanation" id="explanationView">Build the walkthrough to start stepping through the conversion.</div>
+        </div>
+
+        <div class="timeline">
+          <input id="stepSlider" type="range" min="0" max="0" value="0">
+          <div class="stepmeta" id="stepMeta">0 / 0</div>
+        </div>
+
+        <div class="status" id="statusView"></div>
+      </section>
+    </div>
+  </div>
+
+  <script>
+    const precedence = { '+': 1, '-': 1, '*': 2, '/': 2, '^': 3 };
+    const associativity = { '+': 'left', '-': 'left', '*': 'left', '/': 'left', '^': 'right' };
+
+    const expressionInput = document.getElementById('expressionInput');
+    const speedSelect = document.getElementById('speedSelect');
+    const buildBtn = document.getElementById('buildBtn');
+    const prevBtn = document.getElementById('prevBtn');
+    const nextBtn = document.getElementById('nextBtn');
+    const playBtn = document.getElementById('playBtn');
+    const resetBtn = document.getElementById('resetBtn');
+    const stepSlider = document.getElementById('stepSlider');
+    const stackView = document.getElementById('stackView');
+    const remainingView = document.getElementById('remainingView');
+    const currentView = document.getElementById('currentView');
+    const outputView = document.getElementById('outputView');
+    const explanationView = document.getElementById('explanationView');
+    const stepMeta = document.getElementById('stepMeta');
+    const statusView = document.getElementById('statusView');
+    const presets = Array.from(document.querySelectorAll('.preset'));
+
+    let steps = [];
+    let currentStep = 0;
+    let timer = null;
+
+    function isOperator(token) {
+      return Object.prototype.hasOwnProperty.call(precedence, token);
+    }
+
+    function isOperand(token) {
+      return /^[A-Za-z0-9]+$/.test(token);
+    }
+
+    function tokenize(expression) {
+      const compact = expression.trim();
+      if (!compact) {
+        throw new Error('Please enter an expression.');
+      }
+
+      const tokens = compact.match(/[A-Za-z0-9]+|[\+\-\*\/\^\(\)]/g);
+      if (!tokens) {
+        throw new Error('No valid tokens found.');
+      }
+
+      if (tokens.join('') !== compact.replace(/\s+/g, '')) {
+        throw new Error('Use operands, + - * / ^, and parentheses only.');
+      }
+
+      let balance = 0;
+      for (const token of tokens) {
+        if (token === '(') balance += 1;
+        if (token === ')') balance -= 1;
+        if (balance < 0) {
+          throw new Error('Parentheses are not balanced.');
+        }
+      }
+      if (balance !== 0) {
+        throw new Error('Parentheses are not balanced.');
+      }
+
+      return tokens;
+    }
+
+    function snapshot(tokens, index, currentToken, stack, output, explanation) {
+      return {
+        tokens: [...tokens],
+        index,
+        currentToken,
+        stack: [...stack],
+        output: [...output],
+        explanation
+      };
+    }
+
+    function buildSteps(tokens) {
+      const made = [];
+      const stack = [];
+      const output = [];
+
+      made.push(snapshot(
+        tokens,
+        -1,
+        null,
+        stack,
+        output,
+        'We start with an empty stack and an empty postfix expression.'
+      ));
+
+      tokens.forEach((token, index) => {
+        if (isOperand(token)) {
+          output.push(token);
+          made.push(snapshot(
+            tokens,
+            index,
+            token,
+            stack,
+            output,
+            `${token} is an operand, so it goes straight to the postfix expression.`
+          ));
+          return;
+        }
+
+        if (token === '(') {
+          stack.push(token);
+          made.push(snapshot(
+            tokens,
+            index,
+            token,
+            stack,
+            output,
+            'An opening parenthesis is pushed onto the stack to mark a boundary.'
+          ));
+          return;
+        }
+
+        if (token === ')') {
+          while (stack.length && stack[stack.length - 1] !== '(') {
+            const popped = stack.pop();
+            output.push(popped);
+            made.push(snapshot(
+              tokens,
+              index,
+              token,
+              stack,
+              output,
+              `We saw a closing parenthesis, so ${popped} is popped from the stack into postfix.`
+            ));
+          }
+
+          if (!stack.length) {
+            throw new Error('A closing parenthesis has no matching opening parenthesis.');
+          }
+
+          stack.pop();
+          made.push(snapshot(
+            tokens,
+            index,
+            token,
+            stack,
+            output,
+            'The matching opening parenthesis is removed from the stack and does not go to postfix.'
+          ));
+          return;
+        }
+
+        while (
+          stack.length &&
+          isOperator(stack[stack.length - 1]) &&
+          (
+            precedence[stack[stack.length - 1]] > precedence[token] ||
+            (precedence[stack[stack.length - 1]] === precedence[token] && associativity[token] === 'left')
+          )
+        ) {
+          const popped = stack.pop();
+          output.push(popped);
+          made.push(snapshot(
+            tokens,
+            index,
+            token,
+            stack,
+            output,
+            `${popped} leaves the stack first because it has higher priority, or the same priority with left associativity.`
+          ));
+        }
+
+        stack.push(token);
+        made.push(snapshot(
+          tokens,
+          index,
+          token,
+          stack,
+          output,
+          `${token} is pushed onto the stack to wait until it is safe to output.`
+        ));
+      });
+
+      while (stack.length) {
+        const popped = stack.pop();
+        if (popped === '(') {
+          throw new Error('There is an unmatched opening parenthesis.');
+        }
+        output.push(popped);
+        made.push(snapshot(
+          tokens,
+          tokens.length,
+          null,
+          stack,
+          output,
+          `The input is finished, so ${popped} is popped from the stack into postfix.`
+        ));
+      }
+
+      made.push(snapshot(
+        tokens,
+        tokens.length,
+        null,
+        stack,
+        output,
+        'The conversion is complete. The stack is empty and the postfix expression is ready.'
+      ));
+
+      return made;
+    }
+
+    function stopPlay() {
+      if (timer) {
+        clearInterval(timer);
+        timer = null;
+      }
+      playBtn.classList.remove('playing');
+      playBtn.textContent = 'Play';
+    }
+
+    function renderStack(stack) {
+      stackView.innerHTML = '';
+      if (!stack.length) {
+        const empty = document.createElement('div');
+        empty.className = 'stack-empty';
+        empty.textContent = 'Stack is empty';
+        stackView.appendChild(empty);
+        return;
+      }
+
+      stack.forEach((token, index) => {
+        const item = document.createElement('div');
+        item.className = 'stack-item';
+        if (index === stack.length - 1) {
+          item.classList.add('top');
+        }
+        item.textContent = token;
+        stackView.appendChild(item);
+      });
+    }
+
+    function updateUI() {
+      if (!steps.length) {
+        renderStack([]);
+        remainingView.textContent = 'Build the walkthrough to begin.';
+        currentView.textContent = 'Current token: -';
+        outputView.textContent = '-';
+        explanationView.textContent = 'Build the walkthrough to start stepping through the conversion.';
+        stepSlider.max = 0;
+        stepSlider.value = 0;
+        stepMeta.textContent = '0 / 0';
+        prevBtn.disabled = true;
+        nextBtn.disabled = true;
+        playBtn.disabled = true;
+        return;
+      }
+
+      const step = steps[currentStep];
+      const remaining = step.tokens.slice(step.index + 1).join(' ');
+
+      renderStack(step.stack);
+      remainingView.textContent = remaining || 'No remaining input';
+      currentView.innerHTML = `Current token: <span class="token-current">${step.currentToken ?? 'none'}</span>`;
+      outputView.textContent = step.output.join(' ') || '-';
+      explanationView.textContent = step.explanation;
+      stepSlider.max = steps.length - 1;
+      stepSlider.value = currentStep;
+      stepMeta.textContent = `${currentStep} / ${steps.length - 1}`;
+      prevBtn.disabled = currentStep === 0;
+      nextBtn.disabled = currentStep === steps.length - 1;
+      playBtn.disabled = false;
+    }
+
+    function buildWalkthrough() {
+      stopPlay();
+      statusView.textContent = '';
+      try {
+        const tokens = tokenize(expressionInput.value);
+        steps = buildSteps(tokens);
+        currentStep = 0;
+        updateUI();
+      } catch (error) {
+        steps = [];
+        currentStep = 0;
+        updateUI();
+        statusView.textContent = error.message;
+      }
+    }
+
+    function goTo(stepIndex) {
+      if (!steps.length) return;
+      currentStep = Math.max(0, Math.min(stepIndex, steps.length - 1));
+      updateUI();
+    }
+
+    buildBtn.addEventListener('click', buildWalkthrough);
+    prevBtn.addEventListener('click', () => {
+      stopPlay();
+      goTo(currentStep - 1);
+    });
+    nextBtn.addEventListener('click', () => {
+      stopPlay();
+      goTo(currentStep + 1);
+    });
+    resetBtn.addEventListener('click', () => {
+      stopPlay();
+      currentStep = 0;
+      updateUI();
+    });
+    stepSlider.addEventListener('input', (event) => {
+      stopPlay();
+      goTo(Number(event.target.value));
+    });
+    playBtn.addEventListener('click', () => {
+      if (!steps.length) return;
+
+      if (timer) {
+        stopPlay();
+        return;
+      }
+
+      if (currentStep >= steps.length - 1) {
+        currentStep = 0;
+        updateUI();
+      }
+
+      playBtn.classList.add('playing');
+      playBtn.textContent = 'Pause';
+
+      timer = setInterval(() => {
+        if (currentStep >= steps.length - 1) {
+          stopPlay();
+          return;
+        }
+        currentStep += 1;
+        updateUI();
+      }, Number(speedSelect.value));
+    });
+
+    presets.forEach((preset) => {
+      preset.addEventListener('click', () => {
+        expressionInput.value = preset.dataset.expression;
+        buildWalkthrough();
+      });
+    });
+
+    expressionInput.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        buildWalkthrough();
+      }
+    });
+
+    updateUI();
+    buildWalkthrough();
+  </script>
+</body>
+</html>
